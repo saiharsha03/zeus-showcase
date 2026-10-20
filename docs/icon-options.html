@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Hades Icons</title>
+<style>
+:root{--bg:#14110E;--ink:#F4EFE6;--muted:#A79F93;--accent:#E8A33D;--line:#2A251F}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,sans-serif}
+main{max-width:1000px;margin:0 auto;padding:24px 16px}
+h1{font-size:22px;margin:0 0 4px}p{color:var(--muted);margin:0 0 20px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:20px}
+.opt{border:1px solid var(--line);border-radius:18px;padding:18px;text-align:center}
+.opt svg{width:160px;height:160px;border-radius:36px;display:block;margin:0 auto 12px}
+.small{display:flex;justify-content:center;gap:14px;margin-bottom:12px}
+.small svg{width:48px;height:48px;border-radius:12px;margin:0}
+.small .r{border-radius:50%}
+b{display:block;font-size:17px;margin-bottom:4px}span{color:var(--muted);font-size:13px}
+</style></head><body><main>
+<h1>Hades: icon options</h1>
+<p>Warm charcoal and saffron, no purple. Each one is shown large, at launcher size, and as a circle (Samsung masks icons to its own shape).</p>
+<div class="grid" id="g"></div>
+</main>
+<script>
+const BG='#1A1612',INK='#F4EFE6',SAF='#E8A33D',EMB='#C2562D';
+const icons={
+ bident:{t:'Bident',d:"Hades' two-pronged staff. A clean mark that reads at any size.",s:`<rect width="100" height="100" fill="${BG}"/>
+  <path d="M50 84V40" stroke="${INK}" stroke-width="6" stroke-linecap="round"/>
+  <path d="M34 22v14c0 8 7 12 16 12s16-4 16-12V22" fill="none" stroke="${SAF}" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M34 22l-4 6M66 22l4 6" stroke="${SAF}" stroke-width="5" stroke-linecap="round"/>`},
+ helm:{t:'Helm of darkness',d:'The helmet that made Hades invisible, for an assistant that works quietly in the background.',s:`<rect width="100" height="100" fill="${BG}"/>
+  <path d="M24 62c0-22 11-38 26-38s26 16 26 38v8H58V56c0-4-4-7-8-7s-8 3-8 7v14H24z" fill="${INK}"/>
+  <path d="M50 24c-2-6 0-12 6-14-1 6 3 9 2 14" fill="${SAF}"/>
+  <rect x="44" y="49" width="12" height="4" rx="2" fill="${BG}"/>`},
+ pomegranate:{t:'Pomegranate',d:"Persephone's fruit, a warm, friendly Underworld symbol. Saffron seeds stand for all your cards.",s:`<rect width="100" height="100" fill="${BG}"/>
+  <path d="M50 26c18 0 28 13 28 28 0 17-13 28-28 28S22 71 22 54c0-15 10-28 28-28z" fill="${EMB}"/>
+  <path d="M42 22l4-8 4 7 4-7 4 8-4 6h-8z" fill="${EMB}"/>
+  <g fill="${SAF}"><circle cx="40" cy="52" r="4"/><circle cx="52" cy="48" r="4"/><circle cx="60" cy="58" r="4"/><circle cx="46" cy="62" r="4"/><circle cx="56" cy="68" r="3.5"/><circle cx="38" cy="64" r="3"/></g>`},
+ flame:{t:'Underworld flame',d:'A torch flame with an owl-eye spark, the brain (Athena) living inside Hades.',s:`<rect width="100" height="100" fill="${BG}"/>
+  <path d="M50 16c6 14 22 22 22 42 0 14-10 24-22 24S28 72 28 58c0-10 5-16 10-21 0 8 4 12 8 12-4-12 0-24 4-33z" fill="${SAF}"/>
+  <circle cx="50" cy="62" r="9" fill="${BG}"/><circle cx="50" cy="62" r="4" fill="${INK}"/>`},
+ cerberus:{t:'Cerberus',d:'Three-headed guard dog, as three simple heads. Hints at the security side (Cerberus alerts).',s:`<rect width="100" height="100" fill="${BG}"/>
+  <g fill="${INK}"><path d="M20 62l6-20 6 8 6-8 4 20z"/><path d="M38 56l6-24 6 10 6-10 6 24z"/><path d="M58 62l4-20 6 8 6-8 6 20z"/></g>
+  <g fill="${SAF}"><circle cx="31" cy="58" r="2.5"/><circle cx="50" cy="50" r="3"/><circle cx="69" cy="58" r="2.5"/></g>
+  <path d="M24 74h52" stroke="${SAF}" stroke-width="4" stroke-linecap="round"/>`},
+};
+const g=document.getElementById('g');
+for(const [k,v] of Object.entries(icons)){const svg=`<svg viewBox="0 0 100 100">${v.s}</svg>`;
+ g.insertAdjacentHTML('beforeend',`<div class="opt">${svg}<div class="small">${svg.replace('<svg','<svg')}<svg class="r" viewBox="0 0 100 100">${v.s}</svg></div><b>${v.t}</b><span>${v.d}</span></div>`)}
+</script></body></html>

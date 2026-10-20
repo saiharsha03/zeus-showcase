@@ -1,0 +1,12 @@
+{"agents": [
+  {"id": "iris", "name": "Iris", "provider": "claude", "windows": [
+     {"label": "5h", "used_pct": 83.5, "resets_at": 1792900800},
+     {"label": "7d", "used_pct": 46.0, "resets_at": 1793368800},
+     {"label": "7d Opus", "used_pct": null, "resets_at": 1792800000}],
+   "model": "Opus 5.5", "cost_usd": 3.42, "updated": 1792879000},
+  {"id": "atlas", "name": "Atlas", "provider": "codex", "windows": [
+     {"label": "5h", "used_pct": 91.0, "resets_at": 1792890000},
+     {"label": "7d", "used_pct": 55.0, "resets_at": 1793374633}],
+   "model": "gpt-6.1-sol", "plan": "prolite", "limit_reached": false, "updated": 1792879500},
+  {"name": "no id, dropped"}
+], "now": 1792880000}

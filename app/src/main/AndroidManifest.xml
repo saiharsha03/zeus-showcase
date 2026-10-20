@@ -1,0 +1,465 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Phase 2a: the brain talks to api.anthropic.com only. Every request passes NetGate (brain/NetGate.kt),
+         and network_security_config.xml trusts no other host and turns cleartext off. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Delphi's calendar proposals: write to a chosen Google calendar, only after he confirms. Asked on the card. -->
+    <uses-permission android:name="android.permission.WRITE_CALENDAR" />
+    <!-- Confirmed alarm proposals go to the clock app. -->
+    <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
+    <!-- Hermes: "dnd on" from his own command. Granted by hand in Settings; Zeus asks once. -->
+    <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
+    <!-- Calypso's fingerprint. -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+    <!-- Now and next: the next event, read live and kept on the phone. Asked from the Home card. -->
+    <uses-permission android:name="android.permission.READ_CALENDAR" />
+    <!-- Birthdays from Contacts only (first name and date). Asked in Settings, never on its own. -->
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <!-- Theogony: who he calls most, as labels, read once on the phone (never numbers). -->
+    <uses-permission android:name="android.permission.READ_CALL_LOG" />
+    <!-- The Now Bar (a Live Update) and, later, the brain's nudges. Asked from Settings. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Android 16: lets the Now Bar notification be promoted to the status-bar chip and lock screen. -->
+    <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
+    <!-- Exact Now Bar updates at event edges, without a foreground service. -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" android:maxSdkVersion="32" />
+    <!-- Re-arms the Now Bar alarm after a restart. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Phase 2b: Speak in Parnassus. Android's speech recognizer, on the phone (offline preferred). Asked when he taps Speak. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Phase 2b notification senses: no permission here. He grants notification access in system settings,
+         and SensesListener below is the only thing that can read them. -->
+
+    <!-- Phase 2c: store-arrival lists. Geofences for the places he names in Themis > Places. Asked from the
+         Places screen with an explanation: precise first, then "Allow all the time" in system settings.
+         Coordinates stay on the phone; only "near <store>" reaches the brain. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+    <!-- Music: drive mode's IN_VEHICLE signal for "music while driving". Asked in Themis > Music only when he
+         turns on Detect driving. Spotify itself is App Remote (IPC to the Spotify app) plus
+         accounts.spotify.com and api.spotify.com through NetGate. -->
+    <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
+
+    <!-- Olympia: match day's live scores. A dataSync foreground service runs only while one of his
+         matches is on (its notification is the live score) and stops after full time. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+
+    <!-- Odyssey: the drive report samples sensors and GPS only during a detected drive, in a location
+         foreground service started from the IN_VEHICLE transition. The Wi-Fi name helps name a stay.
+         Usage access (optional, Settings > Usage access) shows which apps were on screen while moving. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <!-- Clio's device area: Wi-Fi / mobile switches (default-network callback), and car Bluetooth connects (asked for in Clio's Day view). -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" tools:ignore="ProtectedPermissions" />
+    <!-- Iaso: Health Connect reads (asked on the Iaso screen) and writes of the weights and meals Zeus logs.
+         The Galaxy Watch arrives through Samsung Health's Health Connect sync. Nothing else. -->
+    <uses-permission android:name="android.permission.health.READ_STEPS" />
+    <uses-permission android:name="android.permission.health.READ_SLEEP" />
+    <uses-permission android:name="android.permission.health.READ_HEART_RATE" />
+    <uses-permission android:name="android.permission.health.READ_RESTING_HEART_RATE" />
+    <uses-permission android:name="android.permission.health.READ_EXERCISE" />
+    <uses-permission android:name="android.permission.health.READ_WEIGHT" />
+    <uses-permission android:name="android.permission.health.READ_ACTIVE_CALORIES_BURNED" />
+    <uses-permission android:name="android.permission.health.WRITE_WEIGHT" />
+    <uses-permission android:name="android.permission.health.WRITE_NUTRITION" />
+
+    <!-- Prometheus: hands an update the owner chose to Android's package installer. Without INSTALL_PACKAGES,
+         Android always shows its own confirmation, so nothing installs silently. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- Telete: the one-tap "Unrestricted background" request for Zeus itself. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
+    <!-- Rhythms: the call log, for "calls Mom daily at 7 PM". Asked once on Themis > Rhythms. Names and
+         times stay on the phone; a number is read for its country and dropped. -->
+    <uses-permission android:name="android.permission.READ_CALL_LOG" />
+
+    <!-- Package visibility for the clock app (alarm and timer proposals). -->
+    <queries>
+        <intent><action android:name="android.intent.action.SET_ALARM" /></intent>
+        <!-- The morning brief names yesterday's top apps: launcher apps' labels only. -->
+        <intent><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent>
+        <intent><action android:name="android.intent.action.SET_TIMER" /></intent>
+        <intent><action android:name="android.intent.action.DISMISS_ALARM" /></intent>
+        <!-- Speech recognition service (Speak in Parnassus) and the camera app (Photo). -->
+        <intent><action android:name="android.speech.RecognitionService" /></intent>
+        <intent><action android:name="android.media.action.IMAGE_CAPTURE" /></intent>
+        <!-- Music: the Spotify app (App Remote), Apple Music (fallback), and Custom Tabs for the sign-in. -->
+        <package android:name="com.spotify.music" />
+        <package android:name="com.apple.android.music" />
+        <intent><action android:name="android.media.action.MEDIA_PLAY_FROM_SEARCH" /></intent>
+        <intent><action android:name="android.support.customtabs.action.CustomTabsService" /></intent>
+        <!-- Iaso: Health Connect (Android 13 and older ship it as an app). -->
+        <package android:name="com.google.android.apps.healthdata" />
+        <!-- Rhythms: WhatsApp for the call nudge, and launcher apps' names ("Chess Arena") for learned habits. -->
+        <package android:name="com.whatsapp" />
+        <intent><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent>
+    </queries>
+
+    <application
+        android:name=".ZeusApp"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:label="@string/app_name"
+        android:allowBackup="false"
+        android:fullBackupContent="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:theme="@style/Theme.Athena"
+        android:networkSecurityConfig="@xml/network_security_config"
+        android:usesCleartextTraffic="false"
+        tools:targetApi="35">
+
+        <!-- Fold and unfold resize in place: no activity restart, so the bar and rail swap live. -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation|density|keyboard|keyboardHidden|navigation|uiMode"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- Share to Zeus: text, links and images land in Parnassus. -->
+            <intent-filter android:label="Keep in Parnassus">
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+            <intent-filter android:label="Keep in Parnassus">
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
+        </activity>
+
+        <!-- Phase 2b: the notification sense. Bound by the system only after he grants notification access. -->
+        <service
+            android:name=".brain.SensesListener"
+            android:label="Zeus senses"
+            android:exported="true"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+        <!-- Alarm awareness: the system tells us when his next alarm changes; Zeus keeps the value for habits. -->
+        <receiver android:name=".alarms.AlarmReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="android.app.action.NEXT_ALARM_CLOCK_CHANGED" />
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
+        <receiver android:name=".nowbar.NowBarReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="dev.phonerecall.NOWBAR_TICK" />
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Phase 2c: Zeus as the default digital assistant (ported from PhoneRecall). The side key or a corner
+             swipe opens Athena's sheet over any app. Chosen by the owner in Settings > Default apps. -->
+        <service
+            android:name=".assist.AssistService"
+            android:exported="true"
+            android:label="@string/assist_label"
+            android:permission="android.permission.BIND_VOICE_INTERACTION">
+            <meta-data android:name="android.voice_interaction" android:resource="@xml/interaction_service" />
+            <intent-filter><action android:name="android.service.voice.VoiceInteractionService" /></intent-filter>
+        </service>
+        <service
+            android:name=".assist.AssistSessionService"
+            android:exported="true"
+            android:permission="android.permission.BIND_VOICE_INTERACTION" />
+        <!-- Required alongside the assistant; forwards to the phone's own on-device recognizer. -->
+        <service android:name=".assist.VoiceRecognitionService" android:exported="true">
+            <intent-filter><action android:name="android.speech.RecognitionService" /></intent-filter>
+            <meta-data android:name="android.speech" android:resource="@xml/recognizer" />
+        </service>
+        <activity
+            android:name=".assist.AssistActivity"
+            android:exported="true"
+            android:theme="@style/Theme.Athena.Assist"
+            android:excludeFromRecents="true"
+            android:taskAffinity="dev.phonerecall.assist"
+            android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.ASSIST" />
+                <action android:name="android.intent.action.VOICE_COMMAND" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <!-- Hermes: the Ask Zeus widget's command sheet, over any app. -->
+        <activity
+            android:name=".hermes.HermesActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Athena.Assist"
+            android:excludeFromRecents="true"
+            android:taskAffinity="dev.phonerecall.hermes"
+            android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustResize|stateVisible" />
+
+        <!-- Phase 2c: geofence enter/exit (Play services wakes it; no service of ours runs), the arrival
+             notification's buttons, and re-registering geofences after a restart. -->
+        <receiver android:name=".places.GeofenceReceiver" android:exported="false" />
+        <receiver android:name=".places.ArrivalActionReceiver" android:exported="false" />
+        <receiver android:name=".moneta.MonetaActionReceiver" android:exported="false" />
+        <receiver android:name=".places.PlacesBootReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+        <!-- The list widget: the store's list while he is there. Updated on change, never polled. -->
+        <receiver android:name=".places.ListWidget" android:exported="false" android:label="Zeus list">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/list_widget_info" />
+        </receiver>
+
+        <!-- Phase 3: FCM wake-ups. The data is exactly {"t":"sync"}; the service drops anything else and fetches the
+             content from Lemnos over mTLS. Firebase stays off until the phone is paired (auto-init false), and
+             nothing else of Firebase is in the app (no Analytics, no Crashlytics). -->
+        <service android:name=".lemnos.ZeusMessagingService" android:exported="false">
+            <intent-filter><action android:name="com.google.firebase.MESSAGING_EVENT" /></intent-filter>
+        </service>
+        <meta-data android:name="firebase_messaging_auto_init_enabled" android:value="false" />
+        <meta-data android:name="firebase_analytics_collection_deactivated" android:value="true" />
+        <meta-data android:name="delivery_metrics_exported_to_big_query_enabled" android:value="false" />
+        <!-- Lemnos's terminal is a WebView on a local page: no Safe Browsing lookups, no WebView metrics. -->
+        <meta-data android:name="android.webkit.WebView.EnableSafeBrowsing" android:value="false" />
+        <meta-data android:name="android.webkit.WebView.MetricsOptOut" android:value="true" />
+        <!-- Spotify's PKCE redirect, zeus://spotify-callback only. The state and verifier are checked in code;
+             the activity has no UI, swaps the code for tokens and returns to Zeus. -->
+        <activity
+            android:name=".music.SpotifyCallbackActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="zeus" android:host="spotify-callback" />
+            </intent-filter>
+        </activity>
+        <!-- Drive mode's IN_VEHICLE transitions (Play services delivers them; nothing of ours runs in between). -->
+        <receiver android:name=".music.DriveReceiver" android:exported="false" />
+        <!-- Sent by the Bluetooth stack (not the system uid), so exported; senders must hold BLUETOOTH_CONNECT. -->
+        <receiver android:name=".clio.CarLinkReceiver" android:exported="true" android:permission="android.permission.BLUETOOTH_CONNECT">
+            <intent-filter>
+                <action android:name="android.bluetooth.device.action.ACL_CONNECTED" />
+                <action android:name="android.bluetooth.device.action.ACL_DISCONNECTED" />
+            </intent-filter>
+        </receiver>
+        <!-- Odyssey: the drive sampler (only between IN_VEHICLE enter and exit) and re-arming after a restart. -->
+        <service
+            android:name=".odyssey.DriveService"
+            android:exported="false"
+            android:foregroundServiceType="location" />
+        <!-- The morning brief: the daily request to Iris (5:30 AM or before the learned wake time), re-armed after a restart. -->
+        <receiver android:name=".brief.BriefReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+        <receiver android:name=".odyssey.OdysseyBootReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+        <!-- Olympia: the live poller (match day only), its one alarm (lineups, lead-ins, results; re-armed
+             after a restart), and the live widget (updated by Zeus, never polled). -->
+        <service
+            android:name=".olympia.LiveService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+        <receiver android:name=".olympia.MatchDayReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="dev.phonerecall.OLYMPIA_WAKE" />
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+        <receiver android:name=".olympia.LiveWidget" android:exported="false" android:label="Zeus live score">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/live_widget_info" />
+        </receiver>
+
+        <!-- Iaso: why Zeus reads health data. Health Connect opens it from its permission screen
+             (the action on Android 13, the alias with VIEW_PERMISSION_USAGE on 14 and later). -->
+        <activity
+            android:name=".iaso.HealthRationaleActivity"
+            android:exported="true"
+            android:theme="@style/Theme.Athena">
+            <intent-filter><action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" /></intent-filter>
+        </activity>
+        <activity-alias
+            android:name=".iaso.ViewPermissionUsageActivity"
+            android:exported="true"
+            android:targetActivity=".iaso.HealthRationaleActivity"
+            android:permission="android.permission.START_VIEW_PERMISSION_USAGE">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW_PERMISSION_USAGE" />
+                <category android:name="android.intent.category.HEALTH_PERMISSIONS" />
+            </intent-filter>
+        </activity-alias>
+        <!-- Iaso: the camera app writes the meal photo here (cache, deleted after it is downscaled). -->
+        <!-- Mnemosyne: moves a staged restore into place at process start, before any store opens (initOrder: first). -->
+        <provider
+            android:name=".mnemosyne.RestoreGate"
+            android:authorities="${applicationId}.mnemosyne"
+            android:exported="false"
+            android:initOrder="1000" />
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.iaso.photos"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/iaso_paths" />
+        </provider>
+        <!-- Moments: "snap the box". The camera app writes the photo here; it is read on the phone and deleted. -->
+        <activity android:name=".moments.SnapActivity" android:exported="false" android:theme="@style/Theme.Athena" />
+        <provider
+            android:name=".moments.BoxPhotoProvider"
+            android:authorities="${applicationId}.moments.photos"
+            android:exported="false"
+            android:grantUriPermissions="true" />
+        <!-- Iaso: the watch tile's taps (a glass of water, a weight). Bound by Play services only; the phone
+             sends the watch the next event and top task, never health data. -->
+        <service android:name=".iaso.PhoneWearListener" android:exported="true">
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.MESSAGE_RECEIVED" />
+                <data android:scheme="wear" android:host="*" android:pathPrefix="/zeus" />
+            </intent-filter>
+        </service>
+        <!-- The section widgets (widgets/). Each draws what Zeus pushed through WidgetBus; none fetches anything
+             or polls. Lemnos, Cerberus and Pantheon show what the app last synced; tapping opens the section. -->
+        <receiver android:name=".widgets.HermesWidget" android:exported="false" android:label="Ask Zeus">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/hermes_widget_info" />
+        </receiver>
+        <receiver android:name=".widgets.TodayWidget" android:exported="false" android:label="Olympus today">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/today_widget_info" />
+        </receiver>
+        <receiver android:name=".widgets.ChronosWidget" android:exported="false" android:label="Chronos">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/chronos_widget_info" />
+        </receiver>
+        <receiver android:name=".widgets.AgoraWidget" android:exported="false" android:label="Praxis">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/agora_widget_info" />
+        </receiver>
+        <receiver android:name=".widgets.DelphiWidget" android:exported="false" android:label="Delphi">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/delphi_widget_info" />
+        </receiver>
+        <receiver android:name=".widgets.VenusWidget" android:exported="false" android:label="Venus">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/venus_widget_info" />
+        </receiver>
+        <receiver android:name=".widgets.MusicWidget" android:exported="false" android:label="Now playing">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/music_widget_info" />
+        </receiver>
+        <receiver android:name=".widgets.LemnosWidget" android:exported="false" android:label="Lemnos">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/lemnos_widget_info" />
+        </receiver>
+        <receiver android:name=".widgets.CerberusWidget" android:exported="false" android:label="Cerberus">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/cerberus_widget_info" />
+        </receiver>
+        <receiver android:name=".widgets.PantheonWidget" android:exported="false" android:label="Pantheon">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/pantheon_widget_info" />
+        </receiver>
+        <receiver android:name=".widgets.MetronWidget" android:exported="false" android:label="Metron">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/metron_widget_info" />
+        </receiver>
+        <receiver android:name=".widgets.TripsWidget" android:exported="false" android:label="Argo">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/trips_widget_info" />
+        </receiver>
+        <receiver android:name=".widgets.DriveWidget" android:exported="false" android:label="Odyssey drive">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/drive_widget_info" />
+        </receiver>
+        <receiver android:name=".widgets.MoneyWidget" android:exported="false" android:label="Moneta">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/money_widget_info" />
+        </receiver>
+        <receiver android:name=".widgets.HearthWidget" android:exported="false" android:label="Hestia">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/hearth_widget_info" />
+        </receiver>
+        <receiver android:name=".widgets.HealthWidget" android:exported="false" android:label="Iaso">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/health_widget_info" />
+        </receiver>
+        <receiver android:name=".widgets.BriefWidget" android:exported="false" android:label="Eos">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/brief_widget_info" />
+        </receiver>
+        <receiver android:name=".widgets.RoomWidget" android:exported="false" android:label="Agora">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/room_widget_info" />
+        </receiver>
+        <!-- Widget taps that act directly: ticking his own task, the music buttons. Reached only by Zeus's own
+             PendingIntents. -->
+        <receiver android:name=".widgets.WidgetActions" android:exported="false" />
+
+        <!-- Zeus's own reminders (confirmed add_reminder proposals), re-armed after a restart. -->
+        <receiver android:name=".brain.ReminderReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="dev.phonerecall.REMINDER" />
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+        <!-- Rhythms: the call nudge's one alarm, Later and Not today, re-arming after a restart. -->
+        <receiver android:name=".rhythms.RhythmsReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+        <!-- Birthdays: the one push per birthday, its alarm and its "Already wished" (brain/BirthdayDay). -->
+        <receiver android:name=".brain.BirthdayReceiver" android:exported="false" />
+        <!-- The birthday push's call and message buttons: no UI, the tap is his confirm. -->
+        <activity
+            android:name=".brain.BirthdayActionActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity="dev.phonerecall.calls"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+        <!-- The nudge's call buttons: no UI, the tap is his confirm; an activity may start WhatsApp. -->
+        <activity
+            android:name=".rhythms.CallActionActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity="dev.phonerecall.calls"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+        <!-- Prometheus: the installer's status. It only opens Android's confirmation and logs the outcome. -->
+        <receiver android:name=".prometheus.InstallReceiver" android:exported="false" />
+    </application>
+</manifest>

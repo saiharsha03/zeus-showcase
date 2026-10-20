@@ -1,0 +1,7 @@
+{
+  "hooks": {
+    "Stop": [
+      { "hooks": [ { "type": "command", "command": "/usr/bin/python3 -I ${CLAUDE_PLUGIN_ROOT}/hooks/iris_stop.py", "timeout": 10 } ] }
+    ]
+  }
+}

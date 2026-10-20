@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Default digital assistant (ported from PhoneRecall): the side key or a corner swipe opens Athena's sheet. -->
+<voice-interaction-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:sessionService="dev.phonerecall.assist.AssistSessionService"
+    android:recognitionService="dev.phonerecall.assist.VoiceRecognitionService"
+    android:supportsAssist="true"
+    android:supportsLaunchVoiceAssistFromKeyguard="false"
+    android:supportsLocalInteraction="false" />

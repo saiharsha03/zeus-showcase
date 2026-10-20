@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  NetGate's second layer. Cleartext is off everywhere. The base config trusts no certificate
+  authority, so a TLS connection to any host fails; only the hosts below trust the system CAs.
+  NetGate (brain/NetGate.kt) blocks and logs before a request is even attempted.
+  - api.anthropic.com: Athena's brain
+  - zeus.example.com: Lemnos, the VPS gateway (the phone also presents its Keystore client certificate)
+  - api.hetzner.cloud: reboot and power cycle, direct, so they work when the box is down
+  - Aeolia (weather): api.open-meteo.com, geocoding-api.open-meteo.com, air-quality-api.open-meteo.com, api.weather.gov,
+    api.rainviewer.com, tilecache.rainviewer.com, mesonet.agron.iastate.edu, server.arcgisonline.com. Public, no keys.
+  - api.tomtom.com and 511ny.org: Odyssey's traffic checks (TomTom gets the two ends of one trip at check time)
+  - generativelanguage.googleapis.com: Gemini Live (voice), only the Live WebSocket and only while a session is open (NetGate)
+  - www.googleapis.com: Google Calendar birthday events only (the primary calendar's events path, NetGate)
+  - api.github.com and release-assets.githubusercontent.com: Prometheus only (PR and CI status, merge, the release
+    workflow, and the APK download GitHub redirects to)
+  - firebaseinstallations.googleapis.com: Firebase's own code registers this install for FCM wake-ups. The wake-ups
+    themselves arrive through Google Play services (its own process) and carry no content.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors />
+    </base-config>
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="false">api.anthropic.com</domain>
+        <domain includeSubdomains="false">zeus.example.com</domain>
+        <domain includeSubdomains="false">api.hetzner.cloud</domain>
+        <domain includeSubdomains="false">firebaseinstallations.googleapis.com</domain>
+        <domain includeSubdomains="false">accounts.spotify.com</domain>
+        <domain includeSubdomains="false">api.spotify.com</domain>
+        <domain includeSubdomains="false">site.api.espn.com</domain>
+        <domain includeSubdomains="false">api.jolpi.ca</domain>
+        <domain includeSubdomains="false">api.open-meteo.com</domain>
+        <domain includeSubdomains="false">geocoding-api.open-meteo.com</domain>
+        <domain includeSubdomains="false">air-quality-api.open-meteo.com</domain>
+        <domain includeSubdomains="false">api.weather.gov</domain>
+        <domain includeSubdomains="false">api.rainviewer.com</domain>
+        <domain includeSubdomains="false">tilecache.rainviewer.com</domain>
+        <domain includeSubdomains="false">mesonet.agron.iastate.edu</domain>
+        <domain includeSubdomains="false">server.arcgisonline.com</domain>
+        <domain includeSubdomains="false">api.tomtom.com</domain>
+        <domain includeSubdomains="false">511ny.org</domain>
+        <domain includeSubdomains="false">generativelanguage.googleapis.com</domain>
+        <domain includeSubdomains="false">www.googleapis.com</domain>
+        <domain includeSubdomains="false">api.github.com</domain>
+        <domain includeSubdomains="false">release-assets.githubusercontent.com</domain>
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </domain-config>
+</network-security-config>

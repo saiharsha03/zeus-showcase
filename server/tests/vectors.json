@@ -1,0 +1,39 @@
+{
+  "payload": {
+    "task_id": 42,
+    "text": "Café \"quoted\" \\ back\nnew\ttab \u0001 ✓ 😀",
+    "ok": true,
+    "none": null,
+    "list": [
+      3,
+      "x",
+      {
+        "z": 1,
+        "a": -2
+      }
+    ],
+    "Zed": "",
+    "a": {}
+  },
+  "payload_canonical": "{\"Zed\":\"\",\"a\":{},\"list\":[3,\"x\",{\"a\":-2,\"z\":1}],\"none\":null,\"ok\":true,\"task_id\":42,\"text\":\"Café \\\"quoted\\\" \\\\ back\\nnew\\ttab \\u0001 ✓ 😀\"}",
+  "payload_sha256": "835963739c839cab54f53c835898bfe3aabf41f7b8ef1c7cebad421ae400370c",
+  "claims": {
+    "v": 1,
+    "aud": "zeus-gateway",
+    "alg": "ed25519",
+    "kid": "62fc8e60f3ba7ef9",
+    "job_id": "job-7f3a",
+    "kind": "iris.task_note",
+    "executor": "zeus-gateway",
+    "payload_sha256": "835963739c839cab54f53c835898bfe3aabf41f7b8ef1c7cebad421ae400370c",
+    "rev": 1,
+    "nonce": "0123456789abcdef0123456789abcdef",
+    "iat": 1792000000,
+    "exp": 1792000600
+  },
+  "claims_canonical": "{\"alg\":\"ed25519\",\"aud\":\"zeus-gateway\",\"executor\":\"zeus-gateway\",\"exp\":1792000600,\"iat\":1792000000,\"job_id\":\"job-7f3a\",\"kid\":\"62fc8e60f3ba7ef9\",\"kind\":\"iris.task_note\",\"nonce\":\"0123456789abcdef0123456789abcdef\",\"payload_sha256\":\"835963739c839cab54f53c835898bfe3aabf41f7b8ef1c7cebad421ae400370c\",\"rev\":1,\"v\":1}",
+  "ed25519_seed_hex": "a3563917d815f3b5000bd2e95cac5ee51d3900a96e0055c98b14c5a391eb088d",
+  "spki_b64": "MCowBQYDK2VwAyEApC+w9FCz5r+ea9mprE45QntrqRmJPRzTDP0UdzcUujs=",
+  "kid": "62fc8e60f3ba7ef9",
+  "token": "zt1.eyJhbGciOiJlZDI1NTE5IiwiYXVkIjoiemV1cy1nYXRld2F5IiwiZXhlY3V0b3IiOiJ6ZXVzLWdhdGV3YXkiLCJleHAiOjE3OTIwMDA2MDAsImlhdCI6MTc5MjAwMDAwMCwiam9iX2lkIjoiam9iLTdmM2EiLCJraWQiOiI2MmZjOGU2MGYzYmE3ZWY5Iiwia2luZCI6ImlyaXMudGFza19ub3RlIiwibm9uY2UiOiIwMTIzNDU2Nzg5YWJjZGVmMDEyMzQ1Njc4OWFiY2RlZiIsInBheWxvYWRfc2hhMjU2IjoiODM1OTYzNzM5YzgzOWNhYjU0ZjUzYzgzNTg5OGJmZTNhYWJmNDFmN2I4ZWYxYzdjZWJhZDQyMWFlNDAwMzcwYyIsInJldiI6MSwidiI6MX0.9EA7-4ht_uW9rRKc1lE0N_-bMRa7Fy14r7QXw-hMWNKy2ptyATBjPfQ5ltszu2PepPY3BtQIV63kw2Uxi16aBQ"
+}

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Widgets in the launcher's dark mode: the app's DarkColors (warm charcoal + saffron). -->
+    <color name="widget_surface">#15120F</color>
+    <color name="widget_raised">#2A251F</color>
+    <color name="widget_ink">#F2ECE2</color>
+    <color name="widget_ink2">#BDB4A7</color>
+    <color name="widget_ink3">#A0968A</color>
+    <color name="widget_rule">#24F2ECE2</color>
+    <color name="widget_accent">#E8A33D</color>
+    <color name="widget_saffron">#E8A33D</color>
+    <color name="widget_on_saffron">#15120F</color>
+    <color name="widget_ok">#A3C292</color>
+    <color name="widget_alert">#EE8070</color>
+    <color name="widget_quiet">#6F665B</color>
+</resources>

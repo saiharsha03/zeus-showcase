@@ -1,0 +1,36 @@
+# Third-party notices
+
+Natural Earth vector map data: public domain. Source: https://github.com/nvkelso/natural-earth-vector (1:50m land, lakes, boundaries and populated places). Terms: https://www.naturalearthdata.com/about/terms-of-use/ . No online tile service is used for the basemap. Boundaries are cartographic references, not legal determinations.
+
+Holiday dates: Google public country holiday calendars for the United States and India, downloaded 2026-10-17, refreshed weekly when online. Not a personal Google Calendar connection. Source feeds are in NetworkPolicy.java. Regional observances and future dates may change.
+
+Forecast and AQI: Open-Meteo. Official US alerts: National Weather Service. Radar: RainViewer. Data availability and terms remain those of the providers.
+
+Samsung Weather scene pack: not included. It is third-party proprietary art, supported only as a local-only, personal install in assets/aeolia/samsung/ (git-ignored); without it the illustrated scenes are used.
+
+Space Grotesk (fonts/space_grotesk.ttf, also res/font): SIL Open Font License 1.1, Copyright 2020 The Space Grotesk Project Authors. Full license: fonts/OFL-SpaceGrotesk.txt.
+
+SunCalc v1.9.0:
+
+Copyright (c) 2014, Vladimir Agafonkin
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification, are
+permitted provided that the following conditions are met:
+
+   1. Redistributions of source code must retain the above copyright notice, this list of
+      conditions and the following disclaimer.
+
+   2. Redistributions in binary form must reproduce the above copyright notice, this list
+      of conditions and the following disclaimer in the documentation and/or other materials
+      provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY
+EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR
+TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.

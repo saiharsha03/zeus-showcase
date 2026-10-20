@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The picker's preview of the Argo widget: sample text in the real widget's style. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:paddingStart="16dp"
+    android:paddingEnd="16dp"
+    android:paddingTop="14dp"
+    android:paddingBottom="12dp"
+    android:background="@drawable/widget_bg">
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:textColor="@color/widget_accent" android:textSize="11sp" android:letterSpacing="0.12" android:textAllCaps="true" android:maxLines="1" android:text="Argo" />
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:layout_marginBottom="0dp" android:textColor="@color/widget_ink" android:textSize="18sp" android:maxLines="1" android:ellipsize="end" android:text="Boston in 23 days" />
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="1dp" android:textColor="@color/widget_ink2" android:textSize="12sp" android:maxLines="1" android:text="Thu, Mar 4 to Mon, Mar 8 · 4 nights" />
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:orientation="vertical">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="27dp" android:orientation="horizontal" android:gravity="center_vertical">
+            <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:textColor="@color/widget_ink" android:textSize="14sp" android:maxLines="1" android:ellipsize="end" android:text="Flight AA 467 to Boston" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="8dp" android:textColor="@color/widget_ink2" android:textSize="12sp" android:maxLines="1" android:text="Thu 3:42 PM" />
+        </LinearLayout>
+    </LinearLayout>
+</LinearLayout>

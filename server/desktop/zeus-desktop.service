@@ -1,0 +1,41 @@
+[Unit]
+Description=Lemnos remote desktop (XFCE on Xvnc, unix socket only). Started on demand by zeus-gateway, stops itself when idle.
+After=network.target
+
+[Service]
+Type=simple
+User=desk
+Group=desk
+Environment=ZEUS_DESKTOP_IDLE_MIN=15 ZEUS_DESKTOP_GEOMETRY=1600x1200
+# The RFB socket's dir: desk writes, group zeus (the gateway) may enter. Nobody else.
+ExecStartPre=+/usr/bin/install -d -o desk -g zeus -m 2750 /run/zeus-desktop
+ExecStartPre=+/bin/rm -f /run/zeus-desktop/vnc.sock
+ExecStart=/usr/local/lib/zeus-desktop/session
+ExecStopPost=+/bin/rm -f /run/zeus-desktop/vnc.sock
+RuntimeDirectory=zeus-desktop-xdg
+RuntimeDirectoryMode=0700
+Restart=no
+RuntimeMaxSec=12h
+TimeoutStopSec=10
+
+# A cap, so the agents never feel it: ~0.3-0.6 GB in use, never over 1 GB.
+MemoryHigh=900M
+MemoryMax=1G
+MemorySwapMax=256M
+TasksMax=512
+CPUWeight=50
+Nice=5
+
+# The desktop sees its own home only: no /home/agent, /root, volumes, or Zeus's state.
+# To open something deliberately, add a read-only bind here, e.g. BindReadOnlyPaths=/mnt/storagebox/Media:/home/desk/Media
+ProtectHome=tmpfs
+BindPaths=/home/desk
+InaccessiblePaths=-/mnt -/etc/zeus -/var/lib/zeus -/var/lib/zeus-spool -/var/lib/zeus-outbox -/var/spool/zeus-alerts -/var/spool/zeus-calypso -/opt/zeus-backups -/run/zeus-gateway -/run/zeus-channel -/var/log
+PrivateTmp=yes
+ProtectSystem=full
+NoNewPrivileges=yes
+RestrictSUIDSGID=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+LockPersonality=yes

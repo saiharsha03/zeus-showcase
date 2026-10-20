@@ -1,0 +1,69 @@
+#!/usr/bin/python3 -I
+"""zeus-root: the gateway's only root actions. Called as  sudo -n /opt/zeus/bin/zeus-root CMD ARGS  by user zeus.
+
+  journal UNIT LINES          the unit's journal tail
+  unit restart|start|stop UNIT   only units listed in /etc/zeus/units.json "control", never the protected ones
+
+Fixed commands with checked arguments, no shell. Every call is appended to /var/log/zeus-root.log.
+"""
+import json
+import os
+import re
+import subprocess
+import sys
+import time
+
+UNIT = re.compile(r"^[A-Za-z0-9][A-Za-z0-9@._-]{0,120}\.(service|timer)$")
+PROTECTED = {"ssh.service", "sshd.service", "caddy.service", "zeus-gateway.service", "iris-gateway.service", "iris-login-helper.service",
+             "tg-media-dl.service", "security-alerter.service", "fail2ban.service", "systemd-journald.service", "dbus.service",
+             "systemd-logind.service", "systemd-networkd.service", "systemd-resolved.service", "docker.service", "containerd.service",
+             "tailscaled.service", "home-control-relay.service", "atlas-whatsapp.service"}
+CONFIG = "/etc/zeus/units.json"
+LOG = "/var/log/zeus-root.log"
+
+
+def audit(line):
+    try:
+        with open(LOG, "a") as f:
+            f.write(f"{time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())} {line}\n")
+    except OSError:
+        pass
+
+
+def fail(code, msg):
+    audit(f"refused {' '.join(sys.argv[1:])[:200]}: {msg}")
+    sys.stderr.write(json.dumps({"code": code, "error": msg}))
+    sys.exit(2)
+
+
+def controllable():
+    try:
+        st = os.stat(CONFIG)
+        if st.st_uid != 0 or st.st_mode & 0o022:
+            return set()            # only a root-owned, root-written list counts
+        return set(json.load(open(CONFIG)).get("control", [])) - PROTECTED
+    except (OSError, ValueError):
+        return set()
+
+
+def main(a):
+    env = {"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8"}
+    if len(a) == 3 and a[0] == "journal" and UNIT.match(a[1]) and a[2].isdigit():
+        lines = str(min(max(int(a[2]), 10), 2000))
+        r = subprocess.run(["/usr/bin/journalctl", "-u", a[1], "-n", lines, "--no-pager", "-o", "short-iso"], capture_output=True, text=True, timeout=20, env=env)
+        sys.stdout.write(r.stdout[-400_000:])
+        return
+    if len(a) == 3 and a[0] == "unit" and a[1] in ("restart", "start", "stop") and UNIT.match(a[2]):
+        if a[2] not in controllable():
+            fail(403, f"{a[2]} can't be controlled from Zeus")
+        r = subprocess.run(["/usr/bin/systemctl", a[1], "--", a[2]], capture_output=True, text=True, timeout=90, env=env)
+        audit(f"{a[1]} {a[2]} -> {r.returncode}")
+        if r.returncode != 0:
+            fail(502, (r.stderr or "systemctl failed").strip()[:200])
+        sys.stdout.write(json.dumps({"ok": True}))
+        return
+    fail(400, "unknown command")
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])

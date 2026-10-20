@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The launcher icon's night-owl background. Never used inside the app. -->
+    <color name="ic_launcher_background">#050402</color>
+    <!-- Warm charcoal behind the first frame, the same as the dark theme's surface token. -->
+    <color name="athena_bg">#15120F</color>
+    <!-- Widgets follow the launcher's light or dark mode (values-night has the dark set). The same tokens as
+         the app's LightColors / DarkColors in ui/Theme.kt. -->
+    <color name="widget_surface">#F3EEE5</color>
+    <color name="widget_raised">#E6DFD3</color>
+    <color name="widget_ink">#1C1814</color>
+    <color name="widget_ink2">#4F463D</color>
+    <color name="widget_ink3">#62594E</color>
+    <color name="widget_rule">#261C1814</color>
+    <!-- Saffron. On the light surface the kicker uses the darker accent ink so it reads. -->
+    <color name="widget_accent">#7A4C0B</color>
+    <color name="widget_saffron">#E8A33D</color>
+    <color name="widget_on_saffron">#1C1814</color>
+    <color name="widget_ok">#37602F</color>
+    <color name="widget_alert">#A33427</color>
+    <color name="widget_quiet">#8C8276</color>
+</resources>

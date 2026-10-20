@@ -1,0 +1,5 @@
+Third-party files in this folder (unchanged upstream releases):
+- xterm.min.js, xterm.min.css: xterm.js 5.5.0 (npm @xterm/xterm), MIT License, Copyright (c) 2017-2019 The xterm.js authors.
+  https://github.com/xtermjs/xterm.js
+- geist-mono-400.woff2: Geist Mono by Vercel, SIL Open Font License 1.1 (full text: OFL-GeistMono.txt). https://github.com/vercel/geist-font
+term.html is Zeus's own page.

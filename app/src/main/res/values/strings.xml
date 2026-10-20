@@ -1,0 +1,24 @@
+<resources>
+    <string name="app_name">Zeus</string>
+    <string name="widget_list_about">Your list, and the list for the store you are at</string>
+    <string name="widget_live_about">Your teams: the live score, the latest big moment, or the next match</string>
+    <string name="widget_today_about">Olympus today: next events, top tasks, the top Home cards, a birthday if any. Resize up to a full page</string>
+    <string name="widget_chronos_about">Chronos: today and the next two days, the kind of day, and birthdays</string>
+    <string name="widget_agora_about">Praxis: your open tasks, and the agents’ when paired. Tick your own to finish them</string>
+    <string name="widget_delphi_about">Delphi: ask Athena by typing or by voice</string>
+    <string name="widget_hermes_about">Ask Zeus: open apps, set alarms, call and text, by typing or by voice</string>
+    <string name="widget_venus_about">Venus: today’s outfit from your closet</string>
+    <string name="widget_music_about">Now playing, with back, play or pause, and next</string>
+    <string name="widget_lemnos_about">Lemnos: the server up or down, CPU, memory and disk</string>
+    <string name="widget_cerberus_about">Cerberus: unseen alerts by severity</string>
+    <string name="widget_pantheon_about">Pantheon: how Iris, Atlas and Echo are doing</string>
+    <string name="widget_metron_about">Metron: Iris\'s and Atlas\'s plan windows and Athena\'s monthly cap</string>
+    <string name="widget_trips_about">Argo: the next trip\'s countdown; on a travel day the next leg and when to leave</string>
+    <string name="widget_drive_about">Odyssey: your last drive, this week\'s miles against the lease, and when to leave for work</string>
+    <string name="widget_money_about">Moneta: this week against a usual week, charges to check, and the next renewal. No amounts</string>
+    <string name="widget_hearth_about">Hestia: up to four of your lights and plugs. Tap one to switch it</string>
+    <string name="widget_health_about">Iaso: steps today, your weight trend and last night\'s sleep. Only on the widget you place</string>
+    <string name="widget_brief_about">Eos: the morning brief\'s top lines</string>
+    <string name="widget_room_about">Agora: the latest message in the agents\' room, with a dot when it is new</string>
+    <string name="assist_label">Athena</string>
+</resources>

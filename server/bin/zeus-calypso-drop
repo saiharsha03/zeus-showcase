@@ -1,0 +1,95 @@
+#!/usr/bin/env python3
+"""zeus-calypso-drop: seal something into the owner's Calypso (docs/ZEUS-GATEWAY.md, "Calypso drops").
+
+Write-only. The item is encrypted here, to Calypso's public key, before it touches disk: a fresh AES-256-GCM key
+seals the bytes and RSA-OAEP (SHA-256, MGF1 SHA-1) wraps that key. Only the phone's Keystore key, behind the owner's
+fingerprint, can open it. The sealed file goes into the drop spool (1733: anyone can drop, nobody else can list or
+read); the gateway moves it to the phone. You get back {"stored": true, "id": ...} and nothing else.
+
+    echo -n "$TOKEN" | zeus-calypso-drop --from atlas --label "Server API token"
+    zeus-calypso-drop --from iris --kind file --file statement.pdf --label "Card statement"
+
+After depositing, keep no plaintext copy (no memory notes, logs or db rows).
+"""
+import argparse
+import base64
+import json
+import os
+import secrets
+import sys
+import time
+
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import padding, rsa
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
+PUBKEY = os.environ.get("ZEUS_CALYPSO_PUB", "/var/lib/zeus-outbox/calypso.pub.pem")
+SPOOL = os.environ.get("ZEUS_CALYPSO_SPOOL", "/var/spool/zeus-calypso")
+KINDS = ("secret", "note", "file")
+SENDERS = ("iris", "atlas", "athena", "zeus", "echo")
+MAX_BYTES = 2 * 1024 * 1024
+MAX_LABEL = 80
+
+
+def aad(item_id: str, kind: str, label: str, sender: str) -> bytes:
+    return f"calypso/v1\n{item_id}\n{kind}\n{label}\n{sender}".encode()
+
+
+def seal(pub, kind: str, label: str, sender: str, data: bytes, name: str | None = None, at_ms: int | None = None, item_id: str | None = None) -> dict:
+    """The envelope the phone opens (Box.kt). Same framing: 2-byte name length, name, bytes."""
+    if kind not in KINDS:
+        raise ValueError("kind must be secret, note or file")
+    if len(data) > MAX_BYTES:
+        raise ValueError("too big for Calypso (2 MB)")
+    item_id = item_id or secrets.token_hex(12)
+    label = (label.strip()[:MAX_LABEL] or kind.capitalize())
+    n = (name or "").encode()[:255]
+    framed = len(n).to_bytes(2, "big") + n + data
+    key = AESGCM.generate_key(bit_length=256)
+    iv = secrets.token_bytes(12)
+    ct = AESGCM(key).encrypt(iv, framed, aad(item_id, kind, label, sender))
+    wk = pub.encrypt(key, padding.OAEP(mgf=padding.MGF1(hashes.SHA1()), algorithm=hashes.SHA256(), label=None))
+    def b(x): return base64.b64encode(x).decode()
+    return {"v": 1, "id": item_id, "kind": kind, "label": label, "from": sender, "at": at_ms or int(time.time() * 1000), "wk": b(wk), "iv": b(iv), "ct": b(ct)}
+
+
+def load_pub(path: str = PUBKEY):
+    try:
+        with open(path, "rb") as f:
+            pub = serialization.load_pem_public_key(f.read())
+    except OSError:
+        raise SystemExit(json.dumps({"stored": False, "error": "Calypso's public key isn't here yet (the phone publishes it when Calypso opens)."}))
+    if not isinstance(pub, rsa.RSAPublicKey):
+        raise SystemExit(json.dumps({"stored": False, "error": "unexpected key type"}))
+    return pub
+
+
+def main(argv):
+    p = argparse.ArgumentParser(description="Seal something into Calypso (write-only).")
+    p.add_argument("--from", dest="sender", required=True, choices=SENDERS)
+    p.add_argument("--label", required=True, help="a plain name for it, never the value")
+    p.add_argument("--kind", default="secret", choices=KINDS)
+    p.add_argument("--file", help="for --kind file: the file to seal (else the value is read from stdin)")
+    a = p.parse_args(argv)
+    if a.kind == "file":
+        if not a.file:
+            p.error("--kind file needs --file")
+        with open(a.file, "rb") as f:
+            data = f.read(MAX_BYTES + 1)
+        name = os.path.basename(a.file)
+    else:
+        data = sys.stdin.buffer.read(MAX_BYTES + 1)
+        name = None
+    if not data:
+        p.error("nothing to seal")
+    env = seal(load_pub(), a.kind, a.label, a.sender, data, name)
+    del data
+    tmp = os.path.join(SPOOL, f".tmp-{env['id']}")
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(env, f)
+    os.rename(tmp, os.path.join(SPOOL, f"{env['id']}.json"))
+    print(json.dumps({"stored": True, "id": env["id"]}))
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])

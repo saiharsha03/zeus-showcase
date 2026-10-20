@@ -1,0 +1,643 @@
+#!/usr/bin/python3 -I
+"""zeus-openclaw: the only way zeus-gateway touches openclaw's world (tmux, files, owner.db).
+
+The gateway runs as user `zeus` and calls  sudo -n -u openclaw /opt/zeus/bin/zeus-openclaw CMD ARGS...
+Every argument is checked here, because this is the process with openclaw's rights. Output is JSON on stdout,
+or raw bytes for `read`. Errors: exit 2 and {"code": http-ish code, "error": "..."} on stderr.
+
+  tmux   sessions | capture NAME LINES [esc] | type NAME submit|hold (text on stdin) | key NAME KEY
+         new-shell | kill-shell NAME | attach NAME rw|ro
+  files  disk | ls ROOT PATH | read ROOT PATH MAXBYTES | write ROOT PATH (body on stdin, never overwrites)
+         mkdir ROOT PATH | rename ROOT PATH TO | move ROOT PATH TOROOT TO | trash ROOT PATH
+  iris   tasks STATUS OWNER REVEAL | table NAME LIMIT | task-done ID | task-note ID (text on stdin)
+  atlas  codex-usage (his plan windows from the newest Codex session log, read-only)
+  setup  iris-jobs | iris-setup | atlas-setup (Horologion: names, schedules and one-liners only, never contents)
+"""
+import fnmatch
+import glob
+import json
+import os
+import re
+import shutil
+import sqlite3
+import stat
+import subprocess
+import sys
+import tempfile
+import threading
+import time
+
+TMUX = ["/usr/bin/tmux", "-S", "/tmp/tmux-1000/default"]
+ROOTS = {"home": "/home/agent", "volume": "/mnt/HC_Volume_0000000", "storagebox": "/mnt/storagebox", "opt": "/opt"}
+TRASH = ".zeus-trash"
+# Never listed, read or written, at any depth. Secrets, agent state and databases.
+DENY = [".ssh", ".gnupg", ".claude", ".codex", ".config", ".iris-gateway", ".zeus", ".aws", ".docker", ".netrc", ".git-credentials",
+        "*.env", ".env*", "*token*", "*secret*", "*credential*", "*password*", "*.pem", "*.key", "*.p12", "*.pfx", "*.jks",
+        "*.keystore", "keystores", "id_rsa*", "id_ed25519*", "id_ecdsa*", "owner.db*", "*.sqlite*", "authorized_keys",
+        "_secrets", "secrets", "iris-gateway", "zeus", TRASH]
+# Tests only. sudo's env_reset drops these, so a call through sudo always gets the real paths above.
+if os.environ.get("ZEUS_TEST_ROOTS"):
+    ROOTS = json.loads(os.environ["ZEUS_TEST_ROOTS"])
+SESSION = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,40}$")
+SHELL = re.compile(r"^shell-\d{1,2}$")
+KEYS = {"Escape", "Tab", "BTab", "Enter", "Up", "Down", "Left", "Right", "C-c", "C-d", "C-l", "C-r", "C-o", "C-t", "C-j", "PageUp", "PageDown"}
+IRIS_DB = os.environ.get("ZEUS_TEST_IRIS_DB") if os.environ.get("ZEUS_TEST_ROOTS") else "/home/agent/owner.db"
+CODEX_SESSIONS = os.environ.get("ZEUS_TEST_CODEX", "") if os.environ.get("ZEUS_TEST_ROOTS") else "/home/agent/.codex/sessions"
+HOME = os.environ.get("ZEUS_TEST_HOME", "") if os.environ.get("ZEUS_TEST_ROOTS") else "/home/agent"
+OPT_DOCS = os.path.join(HOME, "opt-docs") if os.environ.get("ZEUS_TEST_ROOTS") else "/opt/zeus/docs"
+TASK_COLS = "id, title, status, priority, due_date, owner, blocked_on_owner, project, notes, context"
+SENSITIVE = re.compile(r"money|financ|bank|loan|card|tax|visa|immigra|health|medical|doctor|weight|therapy", re.I)
+TABLES = {   # show-directly tables, with the columns that may leave
+    "closet": ["id", "cat", "kind", "brand", "colour", "what_it_is", "occasions", "formality", "size", "archived"],
+    "fillups": ["id", "date", "odometer", "gallons", "mpg_calc"],
+    "subscriptions": ["id", "name", "billing_cycle", "next_billing_date", "status"],
+    "workouts": ["id", "date", "type", "distance_miles", "duration_seconds", "steps"],
+    "nightly_ideas": ["id", "ran_on", "idea", "kind", "verdict"],
+}
+
+
+class Fail(Exception):
+    def __init__(self, code, msg):
+        super().__init__(msg)
+        self.code = code
+
+
+def out(obj):
+    sys.stdout.write(json.dumps(obj))
+
+
+# ---------------------------------------------------------------- tmux
+def tmux(*args, check=True, timeout=10):
+    r = subprocess.run(TMUX + list(args), capture_output=True, text=True, timeout=timeout)
+    if check and r.returncode != 0:
+        raise Fail(409, (r.stderr.strip() or "tmux failed")[:200])
+    return r.stdout
+
+
+def live(name):
+    if not SESSION.match(name):
+        raise Fail(400, "bad session name")
+    if subprocess.run(TMUX + ["has-session", "-t", f"={name}"], capture_output=True, timeout=10).returncode != 0:
+        raise Fail(404, "no such session")
+    return name
+
+
+def pane_tree(pid):
+    """argv of every process under the pane's process (the pane itself included)."""
+    kids = {}
+    for d in os.listdir("/proc"):
+        if d.isdigit():
+            try:
+                ppid = open(f"/proc/{d}/stat").read().rsplit(")", 1)[1].split()[1]
+                kids.setdefault(ppid, []).append(d)
+            except (OSError, IndexError):
+                pass
+    found, stack = [], [str(pid)]
+    while stack and len(found) < 200:
+        p = stack.pop()
+        try:
+            argv = open(f"/proc/{p}/cmdline", "rb").read().split(b"\0")
+            found.append(" ".join(a.decode(errors="replace") for a in argv if a)[:300])
+        except OSError:
+            pass
+        stack += kids.get(p, [])
+    return found
+
+
+def sessions():
+    fmt = "#{session_name}\t#{session_created}\t#{session_attached}\t#{window_activity}\t#{pane_pid}"
+    r = subprocess.run(TMUX + ["list-sessions", "-F", fmt], capture_output=True, text=True, timeout=10)
+    rows = []
+    for line in r.stdout.splitlines() if r.returncode == 0 else []:
+        name, created, attached, activity, pid = line.split("\t")
+        rows.append({"name": name, "created": int(created), "attached": int(attached), "activity": int(activity), "procs": pane_tree(pid)})
+    return rows
+
+
+def clean(text):
+    """Literal keystrokes: no control characters, so the text can't press keys itself."""
+    return "".join(ch for ch in text if ch >= " " and ch != "\x7f")
+
+
+# ---------------------------------------------------------------- files
+def resolve(root, rel, must_exist=True):
+    """(absolute path, clean relative path). Lexical checks first, then the real parent must stay inside the root.
+    The last component is never followed (opened with O_NOFOLLOW, or acted on as a link)."""
+    base = ROOTS.get(root)
+    if base is None:
+        raise Fail(404, "unknown root")
+    if "\0" in rel:
+        raise Fail(400, "bad path")
+    parts = [p for p in rel.replace("\\", "/").split("/") if p not in ("", ".")]
+    if any(p == ".." for p in parts):
+        raise Fail(403, "no .. in paths")
+    if any(denied_name(p) for p in parts):
+        raise Fail(403, "not allowed")
+    path = os.path.join(base, *parts) if parts else base
+    real_parent = os.path.realpath(os.path.dirname(path) if parts else base)
+    if real_parent != base and not real_parent.startswith(base.rstrip("/") + "/"):
+        raise Fail(403, "path escapes its root")
+    if must_exist and not os.path.lexists(path):
+        raise Fail(404, "not found")
+    return path, "/".join(parts)
+
+
+def denied_name(name):
+    return any(fnmatch.fnmatch(name.lower(), pat.lower()) for pat in DENY)
+
+
+def ls(root, rel):
+    path, _ = resolve(root, rel)
+    fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW) if rel else os.open(path, os.O_RDONLY | os.O_DIRECTORY)
+    rows = []
+    try:
+        for e in os.scandir(fd):
+            if denied_name(e.name):
+                continue
+            try:
+                st = e.stat(follow_symlinks=False)
+            except OSError:
+                continue
+            link = stat.S_ISLNK(st.st_mode)
+            rows.append({"name": e.name, "dir": stat.S_ISDIR(st.st_mode), "link": link, "size": st.st_size, "mtime": int(st.st_mtime)})
+    finally:
+        os.close(fd)
+    rows.sort(key=lambda r: (not r["dir"], r["name"].lower()))
+    return rows
+
+
+def read(root, rel, maxbytes):
+    path, _ = resolve(root, rel)
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+    except OSError:
+        raise Fail(404, "not a readable file")
+    st = os.fstat(fd)
+    if not stat.S_ISREG(st.st_mode):
+        raise Fail(404, "not a file")
+    if st.st_size > maxbytes:
+        raise Fail(413, "file too large")
+    with os.fdopen(fd, "rb") as f:
+        while chunk := f.read(1 << 20):
+            sys.stdout.buffer.write(chunk)
+
+
+def write(root, rel):
+    path, clean_rel = resolve(root, rel, must_exist=False)
+    if not clean_rel:
+        raise Fail(400, "missing file name")
+    if os.path.lexists(path):
+        raise Fail(409, "file exists")
+    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path), prefix=".zeus-", suffix=".part")
+    try:
+        with os.fdopen(fd, "wb") as f:
+            shutil.copyfileobj(sys.stdin.buffer, f, 1 << 20)
+        try:
+            os.link(tmp, path)   # fails rather than replacing anything
+        except FileExistsError:
+            raise Fail(409, "file exists")
+    finally:
+        os.unlink(tmp)
+    out({"ok": True, "size": os.lstat(path).st_size})
+
+
+def trash(root, rel):
+    path, clean_rel = resolve(root, rel)
+    if not clean_rel:
+        raise Fail(403, "refusing to remove a root")
+    if os.path.islink(path):
+        os.unlink(path)          # the link only, never what it points to
+        return out({"result": "link removed"})
+    bin_ = os.path.join(ROOTS[root], TRASH)
+    os.makedirs(bin_, mode=0o700, exist_ok=True)
+    os.rename(path, os.path.join(bin_, time.strftime("%Y%m%d-%H%M%S-") + os.path.basename(path)))
+    out({"result": "moved to trash"})
+
+
+def disk():
+    rows = []
+    for name, base in ROOTS.items():
+        box = {}
+        t = threading.Thread(target=lambda: box.update(u=shutil.disk_usage(base)), daemon=True)
+        t.start(); t.join(3)     # a stuck network mount must not hang the call
+        u = box.get("u")
+        rows.append({"root": name, "path": base, "total": u.total if u else None, "used": u.used if u else None, "free": u.free if u else None, "ok": bool(u)})
+    return rows
+
+
+# ---------------------------------------------------------------- owner.db (read-only tiers, plus done/note)
+def db(ro=True):
+    return sqlite3.connect(f"file:{IRIS_DB}?mode={'ro' if ro else 'rw'}", uri=True, timeout=5)
+
+
+def tasks(status, owner, reveal):
+    q, args = f"SELECT {TASK_COLS} FROM tasks WHERE 1=1", []
+    if status != "-":
+        q += " AND status=?"; args.append(status)
+    if owner != "-":
+        q += " AND owner=?"; args.append(owner)
+    q += " ORDER BY id LIMIT 200"
+    con = db(); con.row_factory = sqlite3.Row
+    try:
+        rows = [dict(r) for r in con.execute(q, args)]
+    finally:
+        con.close()
+    for r in rows:
+        ctx = r.pop("context") or ""
+        r["sensitive"] = bool(SENSITIVE.search(ctx) or SENSITIVE.search(r.get("project") or ""))
+        first = (r.get("notes") or "").strip().splitlines()
+        r["notes"] = first[0][:160] if first else ""
+        r["blocked_on_owner"] = bool(r["blocked_on_owner"])
+        if r["sensitive"] and reveal != "1":
+            r["title"], r["notes"] = "Private task", ""
+    return rows
+
+
+def table(name, limit):
+    cols = TABLES.get(name)
+    if cols is None:
+        raise Fail(404, "not an exposed table")
+    con = db(); con.row_factory = sqlite3.Row
+    try:
+        have = {r[1] for r in con.execute(f"PRAGMA table_info({name})")}
+        use = [c for c in cols if c in have]
+        return [dict(r) for r in con.execute(f"SELECT {', '.join(use)} FROM {name} ORDER BY id DESC LIMIT ?", (min(max(limit, 1), 200),))]
+    finally:
+        con.close()
+
+
+LONG_DIGITS = re.compile(r"\d(?:[ -]?\d){6,}")
+
+
+def money_ledger(since, limit):
+    """Moneta's copy of Iris's money log (Iris logs every transaction; Moneta mirrors it). Every transaction row
+    after `since` (by id), oldest first: date, amount in cents, currency, category, merchant, kind, card last 4, status.
+    Never a full card number (only the last four digits of `card` leave) and never an account balance row."""
+    con = db(); con.row_factory = sqlite3.Row
+    try:
+        have = {r[1] for r in con.execute("PRAGMA table_info(transactions)")}
+        col = lambda name: name if name in have else "NULL"
+        amt = f"COALESCE({col('amount')}, {col('estimated_amount')})"
+        q = (f"SELECT id, {col('date')} AS date, {amt} AS amt, {col('currency')} AS currency, {col('category')} AS category, "
+             f"{col('description')} AS merchant, {col('type')} AS kind, {col('card')} AS card, {col('status')} AS status "
+             "FROM transactions WHERE id > ? ORDER BY id LIMIT ?")
+        rows = []
+        last = since
+        for r in con.execute(q, (since, min(max(limit, 1), 1000))):
+            last = r["id"]
+            kind, cat = str(r["kind"] or "").lower(), str(r["category"] or "")
+            if "balance" in kind or "balance" in cat.lower():
+                continue
+            try:
+                cents = int(round(abs(float(r["amt"])) * 100))
+            except (TypeError, ValueError):
+                continue
+            digits = re.sub(r"\D", "", str(r["card"] or ""))
+            rows.append({
+                "id": r["id"], "date": str(r["date"] or "")[:25], "cents": cents, "currency": (str(r["currency"] or "USD").upper())[:3],
+                "category": cat[:40], "merchant": LONG_DIGITS.sub("", str(r["merchant"] or "")).strip()[:60], "kind": kind[:20],
+                "last4": digits[-4:] if len(digits) >= 4 else None, "status": str(r["status"] or "")[:20],
+            })
+        top = con.execute("SELECT COALESCE(MAX(id), 0) FROM transactions").fetchone()[0]
+        tables = {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        subs = []
+        if "subscriptions" in tables:
+            sh = {r[1] for r in con.execute("PRAGMA table_info(subscriptions)")}
+            sc = lambda name: name if name in sh else "NULL"
+            for s in con.execute(f"SELECT id, {sc('name')} AS name, {sc('amount')} AS amount, {sc('currency')} AS currency, {sc('billing_cycle')} AS cycle, "
+                                 f"{sc('next_billing_date')} AS next, {sc('status')} AS status FROM subscriptions ORDER BY id LIMIT 200"):
+                try:
+                    c = int(round(abs(float(s["amount"])) * 100)) if s["amount"] is not None else None
+                except (TypeError, ValueError):
+                    c = None
+                subs.append({"id": s["id"], "name": str(s["name"] or "")[:40], "cents": c, "currency": str(s["currency"] or "USD").upper()[:3],
+                             "billing_cycle": str(s["cycle"] or ""), "next_billing_date": str(s["next"] or "")[:10], "status": str(s["status"] or "")})
+        return {"rows": rows, "next": last, "more": last < top, "subscriptions": subs}
+    finally:
+        con.close()
+
+
+def task_done(tid):
+    con = db(ro=False)
+    try:
+        stamp = ", updated_at=datetime('now')" if "updated_at" in {r[1] for r in con.execute("PRAGMA table_info(tasks)")} else ""
+        n = con.execute(f"UPDATE tasks SET status='done'{stamp} WHERE id=? AND status='pending'", (tid,)).rowcount
+        con.commit()
+    finally:
+        con.close()
+    if n != 1:
+        raise Fail(409, "not an open task")
+    out({"ok": True})
+
+
+def task_note(tid, text):
+    text = clean(text.replace("\n", " ")).strip()[:1000]
+    if not text:
+        raise Fail(400, "empty note")
+    con = db(ro=False)
+    try:
+        n = con.execute("UPDATE tasks SET notes = COALESCE(notes || char(10), '') || ? WHERE id=?",
+                        (time.strftime("[%Y-%m-%d Zeus, from the owner] ") + text, tid)).rowcount
+        con.commit()
+    finally:
+        con.close()
+    if n != 1:
+        raise Fail(404, "no such task")
+    out({"ok": True})
+
+
+# ---------------------------------------------------------------- Atlas's plan windows (Metron)
+def codex_usage():
+    """Codex writes its rate limits into the session log (token_count events). Reads the newest log's tail only and
+    returns the limits and the model, nothing else from the log: no prompts, no replies, no paths."""
+    import glob
+    files = glob.glob(os.path.join(CODEX_SESSIONS, "*", "*", "*", "rollout-*.jsonl"))
+    if not files:
+        return {"rate_limits": None, "model": None, "mtime": None}
+    f = max(files, key=os.path.getmtime)
+    with os.fdopen(os.open(f, os.O_RDONLY | os.O_NOFOLLOW), "rb") as h:
+        h.seek(max(0, os.fstat(h.fileno()).st_size - 600_000))
+        lines = h.read().decode("utf-8", "replace").splitlines()
+    limits = model = None
+    for line in reversed(lines):
+        if limits is None and '"rate_limits"' in line:
+            try:
+                limits = (json.loads(line).get("payload") or {}).get("rate_limits")
+            except (ValueError, AttributeError):
+                pass
+        if model is None and '"turn_context"' in line:
+            try:
+                model = (json.loads(line).get("payload") or {}).get("model")
+            except (ValueError, AttributeError):
+                pass
+        if limits is not None and model is not None:
+            break
+
+    def window(w):
+        return {k: w.get(k) for k in ("used_percent", "window_minutes", "resets_at")} if isinstance(w, dict) else None
+
+    def word(v):
+        return v if isinstance(v, str) else None
+    rl = None
+    if isinstance(limits, dict):
+        rl = {"primary": window(limits.get("primary")), "secondary": window(limits.get("secondary")),
+              "plan_type": word(limits.get("plan_type")), "rate_limit_reached_type": word(limits.get("rate_limit_reached_type"))}
+    return {"rate_limits": rl, "model": word(model), "mtime": int(os.path.getmtime(f))}
+
+
+# ---------------------------------------------------------------- Horologion: what is set up (names, never contents)
+# Every value that leaves goes through these: short single-line words, file *names*, never prompts, bodies, env or args.
+WORD = re.compile(r"^[A-Za-z0-9 _.:@/+()#,'*|-]{1,80}$")
+SECRETISH = re.compile(r"(?i)(sk-[a-z0-9]|token|secret|passw|bearer|api[_-]?key|xox[abp]-|ghp_|AKIA)")
+
+
+def word(v, n=80):
+    """A short plain name or None: one line, no secret-looking text."""
+    if not isinstance(v, str):
+        return None
+    v = " ".join(v.split())[:n]
+    return v if v and WORD.match(v) and not SECRETISH.search(v) else None
+
+
+def line(v, n=200):
+    """A one-line description (a SKILL.md frontmatter description), or None."""
+    if not isinstance(v, str):
+        return None
+    v = " ".join(v.split())[:n]
+    return v if v and not SECRETISH.search(v) else None
+
+
+def jload(path):
+    try:
+        with os.fdopen(os.open(path, os.O_RDONLY | os.O_NOFOLLOW), "r", encoding="utf-8") as f:
+            return json.loads(f.read(2_000_000))
+    except (OSError, ValueError):
+        return None
+
+
+def script_name(command):
+    """The script a hook runs, as a file name only: never its arguments, env assignments or paths."""
+    if not isinstance(command, str):
+        return None
+    for tok in command.split():
+        if "=" in tok and not tok.startswith(("/", ".")):
+            continue                    # FOO=bar env assignments
+        base = os.path.basename(tok.strip("'\""))
+        if re.search(r"\.(py|sh|js|mjs|ts|rb)$", base):
+            return word(base)
+    first = next((t for t in command.split() if "=" not in t), "")
+    return word(os.path.basename(first.strip("'\"")))
+
+
+def frontmatter(path):
+    """name and description from a SKILL.md's frontmatter only; the body is never read past it."""
+    try:
+        with os.fdopen(os.open(path, os.O_RDONLY | os.O_NOFOLLOW), "r", encoding="utf-8") as f:
+            head = f.read(4000)
+    except OSError:
+        return {}
+    if not head.startswith("---"):
+        return {}
+    meta = {}
+    for ln in head.split("\n")[1:60]:
+        if ln.strip() == "---":
+            break
+        if ":" in ln and not ln.startswith(" "):
+            k, v = ln.split(":", 1)
+            meta[k.strip()] = v.strip().strip("'\"")
+    return {"name": word(meta.get("name")), "description": line(meta.get("description"))}
+
+
+def iris_jobs():
+    """~/.claude/crons.json: id, cron, status and last run. Never the prompt or any other field."""
+    d = jload(os.path.join(HOME, ".claude", "crons.json"))
+    items = d if isinstance(d, list) else (d.get("jobs") or d.get("crons") or [] if isinstance(d, dict) else [])
+    if isinstance(items, dict):
+        items = [dict(v, id=k) if isinstance(v, dict) else {"id": k} for k, v in items.items()]
+    rows = []
+    for j in items[:100] if isinstance(items, list) else []:
+        if not isinstance(j, dict):
+            continue
+        cron = j.get("cron") or j.get("schedule") or j.get("expression")
+        cron = cron if isinstance(cron, str) and re.fullmatch(r"[0-9*/,\- A-Za-z]{1,60}", cron) else None
+        status = j.get("status")
+        if not isinstance(status, str):
+            status = "paused" if j.get("paused") is True or j.get("enabled") is False else "active"
+        last = j.get("last_run") or j.get("lastRun") or j.get("last_run_at")
+        rows.append({"id": word(str(j.get("id") or j.get("name") or ""), 60), "cron": cron, "status": word(status, 20),
+                     "last_run": last if isinstance(last, (int, float)) else word(last, 40)})
+    return rows
+
+
+def iris_setup():
+    """Skills, hooks, plugins and MCP servers by name; her memory files with line counts; brief files present; model."""
+    claude = os.path.join(HOME, ".claude")
+    skills = []
+    for p in sorted(glob.glob(os.path.join(claude, "skills", "*", "SKILL.md")))[:200]:
+        fm = frontmatter(p)
+        skills.append({"name": fm.get("name") or word(os.path.basename(os.path.dirname(p))), "description": fm.get("description"), "from": "own"})
+    for p in sorted(glob.glob(os.path.join(claude, "plugins", "**", "skills", "*", "SKILL.md"), recursive=True))[:300]:
+        skills.append({"name": word(os.path.basename(os.path.dirname(p))), "description": frontmatter(p).get("description"), "from": "plugin"})
+    hooks, plugins, mcp, model = [], [], set(), None
+    for fname in ("settings.json", "settings.local.json"):
+        s = jload(os.path.join(claude, fname))
+        if not isinstance(s, dict):
+            continue
+        model = model or word(s.get("model"), 60)
+        for event, groups in (s.get("hooks") or {}).items() if isinstance(s.get("hooks"), dict) else []:
+            for g in groups if isinstance(groups, list) else []:
+                for h in (g.get("hooks") or []) if isinstance(g, dict) else []:
+                    if isinstance(h, dict):
+                        hooks.append({"event": word(event, 40), "matcher": word(g.get("matcher") or "*", 60), "script": script_name(h.get("command")), "file": fname})
+        for name, on in (s.get("enabledPlugins") or {}).items() if isinstance(s.get("enabledPlugins"), dict) else []:
+            plugins.append({"name": word(name), "enabled": on is True})
+        for name in (s.get("mcpServers") or {}) if isinstance(s.get("mcpServers"), dict) else []:
+            mcp.add(word(name))
+    top = jload(os.path.join(HOME, ".claude.json"))
+    if isinstance(top, dict):
+        for name in (top.get("mcpServers") or {}) if isinstance(top.get("mcpServers"), dict) else []:
+            mcp.add(word(name))
+    memory = []
+    for p in sorted(glob.glob(os.path.join(claude, "projects", "*", "memory", "*.md")))[:300]:
+        try:
+            with os.fdopen(os.open(p, os.O_RDONLY | os.O_NOFOLLOW), "rb") as f:
+                memory.append({"file": word(os.path.basename(p)), "lines": f.read(5_000_000).count(b"\n")})
+        except OSError:
+            pass
+    briefs = [n for n in ("SOUL.md", "CLAUDE.md", "IRIS-PROFILE.md", "IRIS-BRIEF.md", "AGENTS.md")
+              if os.path.isfile(os.path.join(HOME, n)) or os.path.isfile(os.path.join(claude, n))]
+    briefs += [word(os.path.basename(p)) for p in sorted(glob.glob(os.path.join(OPT_DOCS, "IRIS-*.md")))[:40]]
+    channels = sorted({p["name"].split("@")[0] for p in plugins if p["name"] and p["enabled"] and re.search(r"telegram|zeus|channel|discord|slack", p["name"], re.I)})
+    return {"skills": [s for s in skills if s["name"]], "hooks": hooks, "plugins": [p for p in plugins if p["name"]],
+            "mcp_servers": sorted(m for m in mcp if m), "memory": [m for m in memory if m["file"]], "briefs": [b for b in briefs if b],
+            "channels": channels, "model": model}
+
+
+def atlas_setup():
+    """~/.codex/config.toml: model, notify hook (file name), approval and sandbox modes, MCP server names; prompt and
+    skill folder names; the Codex version. Nothing else from the file."""
+    cfg = {}
+    try:
+        import tomllib
+        with open(os.path.join(HOME, ".codex", "config.toml"), "rb") as f:
+            cfg = tomllib.load(f)
+    except (OSError, ValueError, ImportError):
+        cfg = {}
+    notify = cfg.get("notify")
+    notify = next((script_name(t) for t in notify if isinstance(t, str) and re.search(r"\.(py|sh|js)$", t)), None) if isinstance(notify, list) else script_name(notify)
+    version = None
+    try:
+        r = subprocess.run(["codex", "--version"], capture_output=True, text=True, timeout=5)
+        version = word(r.stdout.strip().splitlines()[0] if r.returncode == 0 and r.stdout.strip() else None, 40)
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    names = lambda d: sorted(n for n in (word(os.path.basename(p)) for p in glob.glob(os.path.join(HOME, ".codex", d, "*"))[:100]) if n)
+    return {"version": version, "model": word(cfg.get("model"), 60), "notify": notify,
+            "approval": word(cfg.get("approval_policy"), 30), "sandbox": word(cfg.get("sandbox_mode"), 30),
+            "mcp_servers": sorted(n for n in (word(k) for k in (cfg.get("mcp_servers") or {})) if n) if isinstance(cfg.get("mcp_servers"), dict) else [],
+            "prompts": names("prompts"), "skills": names("skills")}
+
+
+# ---------------------------------------------------------------- dispatch
+def main(a):
+    cmd, args = (a[0], a[1:]) if a else ("", [])
+    n = len(args)
+    if cmd == "sessions" and n == 0:
+        return out(sessions())
+    if cmd == "capture" and n in (2, 3):
+        lines = min(max(int(args[1]), 10), 10000)
+        extra = ["-e"] if n == 3 and args[2] == "esc" else []
+        return sys.stdout.write(tmux("capture-pane", "-p", "-J", *extra, "-t", f"={live(args[0])}:", "-S", f"-{lines}"))
+    if cmd == "type" and n == 2 and args[1] in ("submit", "hold"):
+        text = clean(sys.stdin.read(20000))
+        tmux("send-keys", "-t", f"={live(args[0])}:", "-l", "--", text)
+        if args[1] == "submit":
+            time.sleep(0.15)
+            tmux("send-keys", "-t", f"={args[0]}:", "Enter")
+        return out({"ok": True})
+    if cmd == "key" and n == 2:
+        if args[1] not in KEYS:
+            raise Fail(400, "key not allowed")
+        tmux("send-keys", "-t", f"={live(args[0])}:", args[1])
+        return out({"ok": True})
+    if cmd == "new-shell" and n == 0:
+        taken = {s["name"] for s in sessions()}
+        name = next((f"shell-{i}" for i in range(1, 100) if f"shell-{i}" not in taken), None)
+        if name is None:
+            raise Fail(409, "too many shells")
+        tmux("new-session", "-d", "-s", name, "-c", ROOTS["home"], "-x", "200", "-y", "50", "bash -l")
+        return out({"session": name})
+    if cmd == "kill-shell" and n == 1:
+        if not SHELL.match(args[0]):
+            raise Fail(400, "only shells opened from Zeus can be closed")
+        tmux("kill-session", "-t", f"={live(args[0])}")
+        return out({"ok": True})
+    if cmd == "attach" and n == 2 and args[1] in ("rw", "ro"):
+        live(args[0])
+        os.environ.update(TERM="xterm-256color", LANG="C.UTF-8")
+        os.execv(TMUX[0], TMUX + ["attach-session", "-t", f"={args[0]}"] + (["-r"] if args[1] == "ro" else []))
+    if cmd == "disk" and n == 0:
+        return out(disk())
+    if cmd == "ls" and n == 2:
+        return out(ls(*args))
+    if cmd == "read" and n == 3:
+        return read(args[0], args[1], int(args[2]))
+    if cmd == "write" and n == 2:
+        return write(*args)
+    if cmd == "mkdir" and n == 2:
+        path, rel = resolve(args[0], args[1], must_exist=False)
+        if not rel or os.path.lexists(path):
+            raise Fail(409, "exists")
+        os.mkdir(path, 0o755)
+        return out({"ok": True})
+    if cmd == "rename" and n == 3:
+        return move(args[0], args[1], args[0], args[2])
+    if cmd == "move" and n == 4:
+        return move(*args)
+    if cmd == "trash" and n == 2:
+        return trash(*args)
+    if cmd == "tasks" and n == 3 and args[0] in ("pending", "done", "cancelled", "-") and args[1] in ("owner", "iris", "atlas", "-"):
+        return out(tasks(*args))
+    if cmd == "table" and n == 2:
+        return out(table(args[0], int(args[1])))
+    if cmd == "money-ledger" and n == 2:
+        return out(money_ledger(int(args[0]), int(args[1])))
+    if cmd == "codex-usage" and n == 0:
+        return out(codex_usage())
+    if cmd == "iris-jobs" and n == 0:
+        return out(iris_jobs())
+    if cmd == "iris-setup" and n == 0:
+        return out(iris_setup())
+    if cmd == "atlas-setup" and n == 0:
+        return out(atlas_setup())
+    if cmd == "task-done" and n == 1:
+        return task_done(int(args[0]))
+    if cmd == "task-note" and n == 1:
+        return task_note(int(args[0]), sys.stdin.read(4000))
+    raise Fail(400, "unknown command")
+
+
+def move(root, rel, to_root, to_rel):
+    src, s = resolve(root, rel)
+    dst, d = resolve(to_root, to_rel, must_exist=False)
+    if not s or not d:
+        raise Fail(403, "refusing to move a root")
+    if os.path.lexists(dst):
+        raise Fail(409, "target exists")
+    if os.path.isdir(src) and not os.path.islink(src) and (dst + "/").startswith(src + "/"):
+        raise Fail(400, "can't move a folder into itself")
+    shutil.move(src, dst)   # a rename within one filesystem, a copy + delete across (storage box)
+    out({"ok": True})
+
+
+if __name__ == "__main__":
+    try:
+        main(sys.argv[1:])
+    except Fail as e:
+        sys.stderr.write(json.dumps({"code": e.code, "error": str(e)})); sys.exit(2)
+    except (ValueError, IndexError):
+        sys.stderr.write(json.dumps({"code": 400, "error": "bad arguments"})); sys.exit(2)
+    except PermissionError:
+        sys.stderr.write(json.dumps({"code": 403, "error": "permission denied"})); sys.exit(2)
+    except (OSError, sqlite3.Error, subprocess.TimeoutExpired) as e:
+        sys.stderr.write(json.dumps({"code": 500, "error": f"{type(e).__name__}"})); sys.exit(2)

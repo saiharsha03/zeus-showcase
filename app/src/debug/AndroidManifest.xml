@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Debug builds only (this source set is not in release). The receiver needs android.permission.DUMP, which
+     only the adb shell holds, so no app on the phone can send it commands. Read-only commands; nothing controls a device. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <receiver
+            android:name=".DebugCommandReceiver"
+            android:exported="true"
+            android:permission="android.permission.DUMP">
+            <intent-filter>
+                <action android:name="dev.phonerecall.DEBUG" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>

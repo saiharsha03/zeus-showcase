@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dark from the first frame: the splash and the window behind Compose are warm charcoal. -->
+    <style name="Theme.Athena" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/athena_bg</item>
+        <item name="android:colorBackground">@color/athena_bg</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowSplashScreenBackground">@color/athena_bg</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">@color/athena_bg</item>
+    </style>
+    <!-- The assistant sheet over other apps: transparent window, Compose draws the sheet. -->
+    <style name="Theme.Athena.Assist" parent="Theme.Athena">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:backgroundDimEnabled">true</item>
+        <item name="android:windowAnimationStyle">@android:style/Animation.InputMethod</item>
+    </style>
+</resources>

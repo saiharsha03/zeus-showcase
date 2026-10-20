@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Now playing: track and artist, then back, play or pause, next. His taps act directly, like the Olympus card. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/w_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center_vertical"
+    android:paddingStart="16dp"
+    android:paddingEnd="16dp"
+    android:paddingTop="14dp"
+    android:paddingBottom="12dp"
+    android:background="@drawable/widget_bg">
+    <TextView
+        android:id="@+id/w_kicker"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textColor="@color/widget_accent"
+        android:textSize="11sp"
+        android:letterSpacing="0.12"
+        android:textAllCaps="true"
+        android:maxLines="1" />
+    <TextView
+        android:id="@+id/w_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:textColor="@color/widget_ink"
+        android:textSize="18sp"
+        android:maxLines="1"
+        android:ellipsize="end" />
+    <TextView
+        android:id="@+id/w_sub"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textColor="@color/widget_ink2"
+        android:textSize="13sp"
+        android:maxLines="1"
+        android:ellipsize="end" />
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+        <ImageView
+            android:id="@+id/m_prev"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:scaleType="center"
+            android:background="@drawable/widget_round_raised"
+            android:src="@drawable/widget_ic_prev"
+            android:contentDescription="Previous track" />
+        <ImageView
+            android:id="@+id/m_play"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginStart="12dp"
+            android:layout_marginEnd="12dp"
+            android:scaleType="center"
+            android:background="@drawable/widget_round_saffron"
+            android:src="@drawable/widget_ic_play"
+            android:contentDescription="Play" />
+        <ImageView
+            android:id="@+id/m_next"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:scaleType="center"
+            android:background="@drawable/widget_round_raised"
+            android:src="@drawable/widget_ic_next"
+            android:contentDescription="Next track" />
+    </LinearLayout>
+</LinearLayout>

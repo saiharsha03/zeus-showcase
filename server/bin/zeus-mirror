@@ -1,0 +1,28 @@
+#!/usr/bin/python3 -I
+"""zeus-mirror SOURCE TEXT: drop a service alert into Cerberus's spool. Never fails loudly.
+
+Installed as /usr/local/bin/claw-mirror, the path security-alerter and tg-media-dl already call
+("security" and "media"). Telegram stays their primary channel; this is a copy.
+"""
+import json
+import os
+import re
+import sys
+import time
+import uuid
+
+SPOOL = "/var/spool/zeus-alerts"
+
+try:
+    source = re.sub(r"[^a-z0-9-]", "", sys.argv[1].lower())[:24] or "alert"
+    text = " ".join(sys.argv[2:])[:4000]
+    if text.strip():
+        name = f"{time.time():.6f}-{uuid.uuid4().hex[:8]}"
+        tmp = os.path.join(SPOOL, f".{name}.tmp")
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump({"source": source, "text": text, "ts": time.time()}, f)
+        os.chmod(tmp, 0o644)
+        os.rename(tmp, os.path.join(SPOOL, f"{name}.json"))
+except Exception:
+    pass
+sys.exit(0)

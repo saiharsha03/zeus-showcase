@@ -1,0 +1,116 @@
+#!/usr/bin/env python3
+"""zeus-moneta: Iris's control of Moneta, the owner's money view on his phone (docs: /opt/zeus/docs/IRIS-MONETA.md).
+
+Every op applies directly on the phone (no proposal card), is logged in Moneta's change log, and the owner can undo it.
+JSON in, JSON out. Nothing here moves money, and no field may hold a full card number (last four digits only).
+
+  zeus-moneta add '{"date":"2026-10-19","amount":47.82,"merchant":"Grocer Mart","category":"Groceries","last4":"1234"}'
+  zeus-moneta edit iris:812 '{"amount":50.10,"category":"Groceries"}'
+  zeus-moneta recategorize iris:812 "Eating out"
+  zeus-moneta merge iris:812 iris:813           # keep the first, fold the rest into it
+  zeus-moneta delete iris:813
+  zeus-moneta budget Groceries 400              # or: budget Groceries none
+  zeus-moneta sub-add '{"name":"StreamBox","amount":9.99,"cycle":"monthly","next":"2026-11-05"}'
+  zeus-moneta sub-remove StreamBox
+  zeus-moneta chart '{"id":"dining-trend","type":"line","title":"Eating out by month","query":{"by":"month","months":6,"categories":["Eating out"]}}'
+  zeus-moneta chart-remove dining-trend
+  zeus-moneta schema
+A JSON argument of "-" is read from stdin. Rows from owner.db are keyed iris:<transactions.id>.
+"""
+import json
+import os
+import secrets
+import sys
+import time
+
+sys.path.insert(0, os.environ.get("ZEUS_LIB", "/opt/zeus/lib"))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "lib"))
+import moneta_ops as mo  # noqa: E402
+
+SPOOL = os.environ.get("ZEUS_MONETA_SPOOL", "/var/spool/zeus-moneta")
+
+
+def _json(arg):
+    try:
+        return json.loads(sys.stdin.read(mo.MAX_OP) if arg == "-" else arg)
+    except ValueError as e:
+        raise mo.Invalid(f"not valid JSON: {e}")
+
+
+def _money(arg):
+    if arg.lower() in ("none", "null", "off", "0"):
+        return None
+    try:
+        return float(arg)
+    except ValueError:
+        raise mo.Invalid("amount must be a number of dollars, or none")
+
+
+def build(argv):
+    """argv to (op, args)."""
+    if not argv:
+        raise mo.Invalid("no command; try: zeus-moneta schema")
+    cmd, rest = argv[0], argv[1:]
+    need = {"add": 1, "edit": 2, "recategorize": 2, "delete": 1, "budget": 2, "sub-add": 1, "sub-remove": 1, "chart": 1, "chart-remove": 1}
+    if cmd == "merge":
+        if len(rest) < 2:
+            raise mo.Invalid("merge KEEP DROP [DROP ...]")
+        return "merge", {"keep": rest[0], "drop": rest[1:]}
+    if cmd not in need or len(rest) != need[cmd]:
+        raise mo.Invalid(f"usage: see zeus-moneta --help ({cmd})")
+    if cmd == "add":
+        return "add", _json(rest[0])
+    if cmd == "edit":
+        return "edit", {"key": rest[0], "fields": _json(rest[1])}
+    if cmd == "recategorize":
+        return "recategorize", {"key": rest[0], "category": rest[1]}
+    if cmd == "delete":
+        return "delete", {"key": rest[0]}
+    if cmd == "budget":
+        return "budget", {"category": rest[0], "amount": _money(rest[1])}
+    if cmd == "sub-add":
+        return "sub_add", _json(rest[0])
+    if cmd == "sub-remove":
+        return "sub_remove", {"name": rest[0]}
+    if cmd == "chart":
+        return "chart_put", {"spec": _json(rest[0])}
+    return "chart_remove", {"id": rest[0]}
+
+
+def schema():
+    return {
+        "ops": list(mo.OPS), "kinds": list(mo.KINDS), "fields": list(mo.FIELDS), "cycles": list(mo.CYCLES),
+        "categories": ["Groceries", "Eating out", "Fuel", "Rides and transit", "Car", "Shopping", "Subscriptions", "Utilities",
+                       "Rent and home", "Travel", "Fun", "Health", "Transfers", "Other"],
+        "chart": {"type": list(mo.CHART_TYPES), "query": {"metric": ["spend", "count"], "by": list(mo.BY), "split": list(mo.SPLIT) + [None],
+                  "months": "1-24", "top": "1-12", "categories": "list", "merchants": "list", "cards": "list of last-4",
+                  "kinds": list(mo.KINDS), "cumulative": "bool", "reference": ["budget", None]}},
+        "keys": "iris:<owner.db transactions.id>, or the key you gave (or were given) on add",
+    }
+
+
+def main(argv):
+    if argv[:1] in (["-h"], ["--help"], ["help"]):
+        print(__doc__.strip()); return 0
+    if argv[:1] == ["schema"]:
+        print(json.dumps(schema(), indent=1)); return 0
+    try:
+        op, args = build(argv)
+        args = mo.check(op, args)
+    except mo.Invalid as e:
+        print(json.dumps({"queued": False, "error": str(e)})); return 2
+    op_id = secrets.token_hex(12)
+    if op == "add" and "key" not in args:
+        args["key"] = f"iris:op-{op_id[:12]}"
+    env = {"v": 1, "op_id": op_id, "op": op, "args": args, "at": int(time.time() * 1000)}
+    tmp = os.path.join(SPOOL, f".tmp-{op_id}")
+    with open(tmp, "w", encoding="utf-8") as f:
+        os.fchmod(f.fileno(), 0o640)              # the gateway reads it through the spool's group (zeus)
+        json.dump(env, f)
+    os.rename(tmp, os.path.join(SPOOL, f"{op_id}.json"))
+    print(json.dumps({"queued": True, "op_id": op_id} | ({"key": args["key"]} if op == "add" else {})))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

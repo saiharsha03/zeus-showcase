@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Small monochrome owl for the Quick Settings tile and notification icons (alpha only). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path android:fillColor="#FFFFFFFF" android:fillType="evenOdd"
+        android:pathData="M14,106 C14,58 21,30 30,18 L37,30 C44,25 64,25 71,30 L78,18 C87,30 94,58 94,106 Z
+            M25,60 a13,13 0 1,0 26,0 a13,13 0 1,0 -26,0 Z
+            M57,60 a13,13 0 1,0 26,0 a13,13 0 1,0 -26,0 Z
+            M50,75 L54,83 L58,75 Z" />
+    <path android:fillColor="#FFFFFFFF" android:pathData="M35,56 a4,4 0 1,0 8,0 a4,4 0 1,0 -8,0 Z" />
+    <path android:fillColor="#FFFFFFFF" android:pathData="M67,56 a4,4 0 1,0 8,0 a4,4 0 1,0 -8,0 Z" />
+</vector>

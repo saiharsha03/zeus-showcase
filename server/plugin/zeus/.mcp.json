@@ -1,0 +1,5 @@
+{
+  "mcpServers": {
+    "zeus": { "command": "/usr/bin/python3", "args": ["-I", "${CLAUDE_PLUGIN_ROOT}/server.py"] }
+  }
+}

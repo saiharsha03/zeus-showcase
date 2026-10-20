@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The picker's preview of the Hestia widget: sample text in the real widget's style. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:paddingStart="16dp"
+    android:paddingEnd="16dp"
+    android:paddingTop="14dp"
+    android:paddingBottom="12dp"
+    android:background="@drawable/widget_bg">
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:textColor="@color/widget_accent" android:textSize="11sp" android:letterSpacing="0.12" android:textAllCaps="true" android:maxLines="1" android:text="Hestia" />
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:layout_marginBottom="8dp" android:textColor="@color/widget_ink" android:textSize="15sp" android:maxLines="1" android:ellipsize="end" android:text="2 lights on" />
+    <LinearLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:orientation="horizontal">
+        <LinearLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:layout_marginStart="3dp" android:layout_marginEnd="3dp" android:orientation="vertical" android:gravity="center_vertical" android:paddingStart="10dp" android:background="@drawable/widget_tile_on">
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:textColor="@color/widget_on_saffron" android:textSize="13sp" android:maxLines="1" android:text="Floor lamp" />
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:textColor="@color/widget_on_saffron" android:textSize="11sp" android:text="On" />
+        </LinearLayout>
+        <LinearLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:layout_marginStart="3dp" android:layout_marginEnd="3dp" android:orientation="vertical" android:gravity="center_vertical" android:paddingStart="10dp" android:background="@drawable/widget_tile_off">
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:textColor="@color/widget_ink" android:textSize="13sp" android:maxLines="1" android:text="Porch light" />
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:textColor="@color/widget_ink2" android:textSize="11sp" android:text="Off" />
+        </LinearLayout>
+    </LinearLayout>
+</LinearLayout>

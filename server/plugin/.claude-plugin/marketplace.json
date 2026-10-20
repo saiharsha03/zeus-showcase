@@ -1,0 +1,7 @@
+{
+  "name": "zeus-local",
+  "owner": { "name": "The owner" },
+  "plugins": [
+    { "name": "zeus", "source": "./zeus", "description": "Zeus channel: messages from the owner's phone app into this session, replies back" }
+  ]
+}

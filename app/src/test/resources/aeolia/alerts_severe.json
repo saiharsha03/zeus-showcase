@@ -1,0 +1,1186 @@
+{
+    "@context": [
+        "https://geojson.org/geojson-ld/geojson-context.jsonld",
+        {
+            "@version": "1.1",
+            "wx": "https://api.weather.gov/ontology#",
+            "@vocab": "https://api.weather.gov/ontology#"
+        }
+    ],
+    "type": "FeatureCollection",
+    "features": [
+        {
+            "id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.41fc8ab5a20f4add1ab8514e60a1c775ac55ce0a.002.1",
+            "type": "Feature",
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                    [
+                        [
+                            -107.29,
+                            32.27
+                        ],
+                        [
+                            -107.29,
+                            32.39
+                        ],
+                        [
+                            -107.06,
+                            32.45
+                        ],
+                        [
+                            -107.04,
+                            32.23
+                        ],
+                        [
+                            -107.29,
+                            32.27
+                        ]
+                    ]
+                ]
+            },
+            "properties": {
+                "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.41fc8ab5a20f4add1ab8514e60a1c775ac55ce0a.002.1",
+                "@type": "wx:Alert",
+                "id": "urn:oid:2.49.0.1.840.0.41fc8ab5a20f4add1ab8514e60a1c775ac55ce0a.002.1",
+                "areaDesc": "Dona Ana, NM",
+                "geocode": {
+                    "SAME": [
+                        "035013"
+                    ],
+                    "UGC": [
+                        "NMC013"
+                    ]
+                },
+                "affectedZones": [
+                    "https://api.weather.gov/zones/county/NMC013"
+                ],
+                "references": [
+                    {
+                        "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.4dc5f986fde6b90e0e04158e0276521dc071c907.001.1",
+                        "identifier": "urn:oid:2.49.0.1.840.0.4dc5f986fde6b90e0e04158e0276521dc071c907.001.1",
+                        "sender": "w-nws.webmaster@noaa.gov",
+                        "sent": "2026-10-19T18:58:00-06:00"
+                    }
+                ],
+                "sent": "2026-10-19T19:14:00-06:00",
+                "effective": "2026-10-19T19:14:00-06:00",
+                "onset": "2026-10-19T19:14:00-06:00",
+                "expires": "2026-10-19T19:45:00-06:00",
+                "ends": "2026-10-19T19:45:00-06:00",
+                "status": "Actual",
+                "messageType": "Update",
+                "category": "Met",
+                "severity": "Severe",
+                "certainty": "Observed",
+                "urgency": "Immediate",
+                "event": "Severe Thunderstorm Warning",
+                "sender": "w-nws.webmaster@noaa.gov",
+                "senderName": "NWS El Paso Tx/Santa Teresa NM",
+                "headline": "Severe Thunderstorm Warning issued October 19 at 7:14PM MDT until October 19 at 7:45PM MDT by NWS El Paso Tx/Santa Teresa NM",
+                "description": "At 713 PM MDT, a severe thunderstorm was located 11 miles northeast\nof Akela, moving east at 30 mph.\n\nHAZARD...60 mph wind gusts and quarter size hail.\n\nSOURCE...Radar indicated.\n\nIMPACT...Hail damage to vehicles is expected. Expect wind damage to\nroofs, siding, and trees.\n\nThis severe thunderstorm will remain over mainly rural areas of west\ncentral Dona Ana County.",
+                "instruction": "For your protection move to an interior room on the lowest floor of a\nbuilding.",
+                "response": "Shelter",
+                "note": null,
+                "parameters": {
+                    "AWIPSidentifier": [
+                        "SVSEPZ"
+                    ],
+                    "WMOidentifier": [
+                        "WWUS54 KEPZ 200114"
+                    ],
+                    "NWSheadline": [
+                        "A SEVERE THUNDERSTORM WARNING REMAINS IN EFFECT UNTIL 745 PM MDT FOR WEST CENTRAL DONA ANA COUNTY"
+                    ],
+                    "eventMotionDescription": [
+                        "2026-10-20T01:13:00-00:00...storm...264DEG...25KT...32.31,-107.23"
+                    ],
+                    "windThreat": [
+                        "RADAR INDICATED"
+                    ],
+                    "maxWindGust": [
+                        "60 MPH"
+                    ],
+                    "hailThreat": [
+                        "RADAR INDICATED"
+                    ],
+                    "maxHailSize": [
+                        "1.00"
+                    ],
+                    "BLOCKCHANNEL": [
+                        "EAS",
+                        "NWEM",
+                        "CMAS"
+                    ],
+                    "EAS-ORG": [
+                        "WXR"
+                    ],
+                    "VTEC": [
+                        "/O.CON.KEPZ.SV.W.0161.000000T0000Z-261020T0145Z/"
+                    ],
+                    "eventEndingTime": [
+                        "2026-10-19T19:45:00-06:00"
+                    ]
+                },
+                "scope": "Public",
+                "code": "IPAWSv1.0",
+                "language": "en-US",
+                "web": "http://www.weather.gov",
+                "eventCode": {
+                    "SAME": [
+                        "SVS"
+                    ],
+                    "NationalWeatherService": [
+                        "SVW"
+                    ]
+                }
+            }
+        },
+        {
+            "id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.2cb56f37c32b9df99c139b8d3c79008077f8d264.002.3",
+            "type": "Feature",
+            "geometry": null,
+            "properties": {
+                "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.2cb56f37c32b9df99c139b8d3c79008077f8d264.002.3",
+                "@type": "wx:Alert",
+                "id": "urn:oid:2.49.0.1.840.0.2cb56f37c32b9df99c139b8d3c79008077f8d264.002.3",
+                "areaDesc": "Ocracoke Island",
+                "geocode": {
+                    "SAME": [
+                        "037095"
+                    ],
+                    "UGC": [
+                        "NCZ204"
+                    ]
+                },
+                "affectedZones": [
+                    "https://api.weather.gov/zones/forecast/NCZ204"
+                ],
+                "references": [
+                    {
+                        "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.b961e1c62cdd63c8031317b1ac07aa7b2aa0fbf5.003.1",
+                        "identifier": "urn:oid:2.49.0.1.840.0.b961e1c62cdd63c8031317b1ac07aa7b2aa0fbf5.003.1",
+                        "sender": "w-nws.webmaster@noaa.gov",
+                        "sent": "2026-10-19T10:05:00-04:00"
+                    },
+                    {
+                        "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.a554b26e69d6233516a88850948d68ed72a24f98.002.1",
+                        "identifier": "urn:oid:2.49.0.1.840.0.a554b26e69d6233516a88850948d68ed72a24f98.002.1",
+                        "sender": "w-nws.webmaster@noaa.gov",
+                        "sent": "2026-10-19T14:47:00-04:00"
+                    }
+                ],
+                "sent": "2026-10-19T20:24:00-04:00",
+                "effective": "2026-10-19T20:24:00-04:00",
+                "onset": "2026-10-19T20:24:00-04:00",
+                "expires": "2026-10-20T08:30:00-04:00",
+                "ends": "2026-10-21T20:00:00-04:00",
+                "status": "Actual",
+                "messageType": "Update",
+                "category": "Met",
+                "severity": "Severe",
+                "certainty": "Likely",
+                "urgency": "Expected",
+                "event": "Coastal Flood Warning",
+                "sender": "w-nws.webmaster@noaa.gov",
+                "senderName": "NWS Newport/Morehead City NC",
+                "headline": "Coastal Flood Warning issued October 19 at 8:24PM EDT until October 21 at 8:00PM EDT by NWS Newport/Morehead City NC",
+                "description": "* WHAT...For the Coastal Flood Warning, up to 2 to 4 feet of\ninundation above ground level in low-lying areas near shorelines\nand tidal waterways. For the High Surf Advisory, large breaking\nwaves of 6 to 9 feet in the surf zone. For the Beach Hazards\nStatement, dangerous rip currents, large breaking waves\nexpected, and strong longshore currents in the surf zone.\n\n* WHERE...Ocracoke Island.\n\n* WHEN...For the Coastal Flood Warning, until 8 PM EDT\nWednesday. For the High Surf Advisory, until 8 AM EDT\nWednesday. For the Beach Hazards Statement, from 8 AM EDT\nTuesday through Tuesday evening.\n\n* IMPACTS...Up to 2 to 4 feet of inundation above ground level is\nexpected in some areas near shorelines and tidal waterways\nresulting in an elevated threat of property damage. Flooding\nwill extend inland from the waterfront threatening some homes\nand businesses. Numerous road closures and flooding of vehicles\nwill be possible. Vulnerable portions of NC-12 may be inundated,\nespecially around high tide. There is a possibility of being\nstranded on Ocracoke for multiple days. This could be life\nthreatening if you have an emergency. Dangerous swimming and\nsurfing conditions and localized beach erosion. Rip currents can\nsweep even the best swimmers away from shore into deeper water.\nDangerous shore break can throw a swimmer or surfer head first\ninto the bottom causing neck and back injuries. Strong longshore\ncurrents will create dangerous swimming conditions.\n\n* ADDITIONAL DETAILS...This is a long duration event with\nuncertainty on when conditions will improve. Significant ocean\noverwash impacts are expected at vulnerable oceanside areas\nthrough multiple high tide cycles into mid week. Minor soundside\nwater level rises will also be possible.",
+                "instruction": "Take the necessary actions to protect flood-prone property. If\ntravel is required, do not drive around barricades or through\nwater of unknown depth.\n\nSwimmers should remain out of the water due to dangerous surf\nconditions.",
+                "response": "Avoid",
+                "note": null,
+                "parameters": {
+                    "AWIPSidentifier": [
+                        "CFWMHX"
+                    ],
+                    "WMOidentifier": [
+                        "WHUS42 KMHX 200024"
+                    ],
+                    "NWSheadline": [
+                        "COASTAL FLOOD WARNING REMAINS IN EFFECT UNTIL 8 PM EDT WEDNESDAY... ...HIGH SURF ADVISORY REMAINS IN EFFECT UNTIL 8 AM EDT WEDNESDAY... ...BEACH HAZARDS STATEMENT IN EFFECT FROM 8 AM EDT TUESDAY THROUGH TUESDAY EVENING"
+                    ],
+                    "BLOCKCHANNEL": [
+                        "EAS",
+                        "NWEM",
+                        "CMAS"
+                    ],
+                    "EAS-ORG": [
+                        "WXR"
+                    ],
+                    "VTEC": [
+                        "/O.CON.KMHX.CF.W.0003.000000T0000Z-261022T0000Z/"
+                    ],
+                    "eventEndingTime": [
+                        "2026-10-21T20:00:00-04:00"
+                    ],
+                    "expiredReferences": [
+                        "w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.637f108880319418eacf31b5c0e50c6da1a744f1.002.1,2026-10-19T02:38:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.a71a9dc5710c7eae23f815e464cd23dd69db989e.002.2,2026-10-18T20:56:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.cb161830b749cbd0e733cc365ccc1a651272c8dc.002.2,2026-10-18T16:04:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.0fa2b1cf35c0ffa63c715482f0e3077ecdd92f31.002.1,2026-10-18T11:02:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.523cfd40838f89a4c2dee3d1c22dbaad7c188f65.002.1,2026-10-18T03:24:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.13ae7e1da47230cfff91b99011363c9ace051d59.002.1,2026-10-17T20:33:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.1c2331befea2bbe6962538ac28872fa4c0a0a9d8.002.3,2026-10-17T19:40:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.b0ace643ad96eb8e139c9106400a2f229ef03ece.003.1,2026-10-17T15:46:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.f462365b1bb348e8cba6bfb4b4def2f6f738643a.002.1,2026-10-17T05:02:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.c636071d8131427853ca9202fcfbad16464ef59f.002.2,2026-10-17T03:35:00-04:00"
+                    ]
+                },
+                "scope": "Public",
+                "code": "IPAWSv1.0",
+                "language": "en-US",
+                "web": "http://www.weather.gov",
+                "eventCode": {
+                    "SAME": [
+                        "CFW"
+                    ],
+                    "NationalWeatherService": [
+                        "CFW"
+                    ]
+                }
+            }
+        },
+        {
+            "id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.2cb56f37c32b9df99c139b8d3c79008077f8d264.001.3",
+            "type": "Feature",
+            "geometry": null,
+            "properties": {
+                "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.2cb56f37c32b9df99c139b8d3c79008077f8d264.001.3",
+                "@type": "wx:Alert",
+                "id": "urn:oid:2.49.0.1.840.0.2cb56f37c32b9df99c139b8d3c79008077f8d264.001.3",
+                "areaDesc": "Hatteras Island",
+                "geocode": {
+                    "SAME": [
+                        "037055"
+                    ],
+                    "UGC": [
+                        "NCZ205"
+                    ]
+                },
+                "affectedZones": [
+                    "https://api.weather.gov/zones/forecast/NCZ205"
+                ],
+                "references": [
+                    {
+                        "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.b961e1c62cdd63c8031317b1ac07aa7b2aa0fbf5.002.1",
+                        "identifier": "urn:oid:2.49.0.1.840.0.b961e1c62cdd63c8031317b1ac07aa7b2aa0fbf5.002.1",
+                        "sender": "w-nws.webmaster@noaa.gov",
+                        "sent": "2026-10-19T10:05:00-04:00"
+                    },
+                    {
+                        "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.a554b26e69d6233516a88850948d68ed72a24f98.001.1",
+                        "identifier": "urn:oid:2.49.0.1.840.0.a554b26e69d6233516a88850948d68ed72a24f98.001.1",
+                        "sender": "w-nws.webmaster@noaa.gov",
+                        "sent": "2026-10-19T14:47:00-04:00"
+                    }
+                ],
+                "sent": "2026-10-19T20:24:00-04:00",
+                "effective": "2026-10-19T20:24:00-04:00",
+                "onset": "2026-10-19T20:24:00-04:00",
+                "expires": "2026-10-20T08:30:00-04:00",
+                "ends": "2026-10-21T20:00:00-04:00",
+                "status": "Actual",
+                "messageType": "Update",
+                "category": "Met",
+                "severity": "Severe",
+                "certainty": "Likely",
+                "urgency": "Expected",
+                "event": "Coastal Flood Warning",
+                "sender": "w-nws.webmaster@noaa.gov",
+                "senderName": "NWS Newport/Morehead City NC",
+                "headline": "Coastal Flood Warning issued October 19 at 8:24PM EDT until October 21 at 8:00PM EDT by NWS Newport/Morehead City NC",
+                "description": "* WHAT...For the Coastal Flood Warning, up to two to four feet of\ninundation above ground level in low-lying areas near shorelines\nand tidal waterways. For the High Surf Advisory, large breaking\nwaves of 9 to 13 feet in the surf zone. For the Beach Hazards\nStatement, dangerous rip currents, large breaking waves\nexpected, and strong longshore currents in the surf zone.\n\n* WHERE...Hatteras Island.\n\n* WHEN...For the Coastal Flood Warning, until 8 PM EDT\nWednesday. For the High Surf Advisory, until 6 AM EDT\nThursday. For the Beach Hazards Statement, from 8 AM EDT\nTuesday through Tuesday evening.\n\n* IMPACTS...Up to 2 to 4 feet of inundation above ground level is\nexpected in some areas near shorelines and tidal waterways\nresulting in an elevated threat of property damage. Flooding\nwill extend inland from the waterfront threatening some homes\nand businesses. Numerous road closures and flooding of vehicles\nwill be possible. Vulnerable portions of NC-12 may be inundated,\nespecially around high tide. There is a possibility of being\nstranded on Hatteras Island for multiple days. This could be\nlife threatening if you have an emergency. Dangerous swimming\nand surfing conditions and localized beach erosion. Rip currents\ncan sweep even the best swimmers away from shore into deeper\nwater. Dangerous shore break can throw a swimmer or surfer head\nfirst into the bottom causing neck and back injuries. Strong\nlongshore currents will create dangerous swimming conditions.\n\n* ADDITIONAL DETAILS...This is a long duration event with\nuncertainty on when conditions will improve. Significant ocean\noverwash impacts are expected at vulnerable oceanside areas\nthrough multiple high tide cycles into mid week. Minor\nsoundside water level rises will also be possible.",
+                "instruction": "Take the necessary actions to protect flood-prone property. If\ntravel is required, do not drive around barricades or through\nwater of unknown depth.\n\nSwimmers should remain out of the water due to dangerous surf\nconditions.",
+                "response": "Avoid",
+                "note": null,
+                "parameters": {
+                    "AWIPSidentifier": [
+                        "CFWMHX"
+                    ],
+                    "WMOidentifier": [
+                        "WHUS42 KMHX 200024"
+                    ],
+                    "NWSheadline": [
+                        "COASTAL FLOOD WARNING REMAINS IN EFFECT UNTIL 8 PM EDT WEDNESDAY... ...HIGH SURF ADVISORY REMAINS IN EFFECT UNTIL 6 AM EDT THURSDAY... ...BEACH HAZARDS STATEMENT IN EFFECT FROM 8 AM EDT TUESDAY THROUGH TUESDAY EVENING"
+                    ],
+                    "BLOCKCHANNEL": [
+                        "EAS",
+                        "NWEM",
+                        "CMAS"
+                    ],
+                    "EAS-ORG": [
+                        "WXR"
+                    ],
+                    "VTEC": [
+                        "/O.CON.KMHX.CF.W.0003.000000T0000Z-261022T0000Z/"
+                    ],
+                    "eventEndingTime": [
+                        "2026-10-21T20:00:00-04:00"
+                    ],
+                    "expiredReferences": [
+                        "w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.637f108880319418eacf31b5c0e50c6da1a744f1.001.1,2026-10-19T02:38:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.a71a9dc5710c7eae23f815e464cd23dd69db989e.001.2,2026-10-18T20:56:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.cb161830b749cbd0e733cc365ccc1a651272c8dc.001.2,2026-10-18T16:04:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.0fa2b1cf35c0ffa63c715482f0e3077ecdd92f31.001.1,2026-10-18T11:02:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.523cfd40838f89a4c2dee3d1c22dbaad7c188f65.001.1,2026-10-18T03:24:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.13ae7e1da47230cfff91b99011363c9ace051d59.001.1,2026-10-17T20:33:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.1c2331befea2bbe6962538ac28872fa4c0a0a9d8.001.3,2026-10-17T19:40:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.b0ace643ad96eb8e139c9106400a2f229ef03ece.002.1,2026-10-17T15:46:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.f462365b1bb348e8cba6bfb4b4def2f6f738643a.001.1,2026-10-17T05:02:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.c636071d8131427853ca9202fcfbad16464ef59f.001.2,2026-10-17T03:35:00-04:00"
+                    ]
+                },
+                "scope": "Public",
+                "code": "IPAWSv1.0",
+                "language": "en-US",
+                "web": "http://www.weather.gov",
+                "eventCode": {
+                    "SAME": [
+                        "CFW"
+                    ],
+                    "NationalWeatherService": [
+                        "CFW"
+                    ]
+                }
+            }
+        },
+        {
+            "id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.bd966519e3b6f707f8613eafa727faf5b8bc5e93.001.1",
+            "type": "Feature",
+            "geometry": null,
+            "properties": {
+                "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.bd966519e3b6f707f8613eafa727faf5b8bc5e93.001.1",
+                "@type": "wx:Alert",
+                "id": "urn:oid:2.49.0.1.840.0.bd966519e3b6f707f8613eafa727faf5b8bc5e93.001.1",
+                "areaDesc": "Cape Fairweather to Lisianski Strait",
+                "geocode": {
+                    "SAME": [
+                        "002105"
+                    ],
+                    "UGC": [
+                        "AKZ322"
+                    ]
+                },
+                "affectedZones": [
+                    "https://api.weather.gov/zones/forecast/AKZ322"
+                ],
+                "references": [
+                    {
+                        "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.4b1ff4be558afbb5e7cdef55d9d9f637922e8e4e.001.1",
+                        "identifier": "urn:oid:2.49.0.1.840.0.4b1ff4be558afbb5e7cdef55d9d9f637922e8e4e.001.1",
+                        "sender": "w-nws.webmaster@noaa.gov",
+                        "sent": "2026-10-19T06:34:00-08:00"
+                    }
+                ],
+                "sent": "2026-10-19T15:22:00-08:00",
+                "effective": "2026-10-19T15:22:00-08:00",
+                "onset": "2026-10-19T22:00:00-08:00",
+                "expires": "2026-10-20T03:30:00-08:00",
+                "ends": "2026-10-21T04:00:00-08:00",
+                "status": "Actual",
+                "messageType": "Update",
+                "category": "Met",
+                "severity": "Severe",
+                "certainty": "Possible",
+                "urgency": "Future",
+                "event": "Flood Watch",
+                "sender": "w-nws.webmaster@noaa.gov",
+                "senderName": "NWS Juneau AK",
+                "headline": "Flood Watch issued October 19 at 3:22PM AKDT until October 21 at 4:00AM AKDT by NWS Juneau AK",
+                "description": "An atmospheric river, currently over the Yakutat area, is expected\nto continue through Tuesday. Multiple periods of heavy rain are\nexpected for the Icy Strait corridor and northeast Gulf Coast,\nincluding the following communities: Yakutat, Elfin Cove, Pelican,\nGustavus, Juneau. Elevated gusty winds are expected alongside this\nheavier rainfall, with the strongest winds from the southwest\nexpected late Tuesday morning into Tuesday afternoon. Prolonged\nperiods of moderate to heavy rain will produce significant river\nrises with the potential for at least minor flooding in Juneau and\nGustavus. Ponding of water in low-lying areas is also possible.\n\n* WHAT...Flooding caused by excessive rainfall continues to be\npossible.\n\n* WHERE...The following areas, Eastern Gulf Coast and Northeast Gulf\nCoast. This includes the cities of Elfin Cove And Pelican.\n\n* WHEN...From 10 PM AKDT this evening through late Tuesday night.\n\n* IMPACTS...Excessive runoff may result in flooding of rivers,\ncreeks, streams, other low-lying areas and flood-prone locations.\nLow-water crossings may be flooded. Isolated landslides are\npossible in areas of steep terrain.\n\n* ADDITIONAL DETAILS...\n- Rain totals for the Elfin Cove and Pelican area through and\nTuesday evening range between 3-4 inches, with greater than 6\ninches possible at elevations greater than 1000 ft. Coinciding\nwith high rain rates, possibly exceeding 0.3 inches per hour,\nelevated wind gusts greater than 40 mph are expected at\nelevations greater than 500 ft.",
+                "instruction": "Stay tuned to further developments by listening to your local radio,\ntelevision, or NOAA Weather Radio for further information.\n\nYou should monitor later forecasts and be alert for possible Flood\nWarnings. Those living in areas prone to flooding should be prepared\nto take action should flooding develop.",
+                "response": "Prepare",
+                "note": null,
+                "parameters": {
+                    "AWIPSidentifier": [
+                        "FFAAJK"
+                    ],
+                    "WMOidentifier": [
+                        "WGAK67 PAJK 192322"
+                    ],
+                    "NWSheadline": [
+                        "FLOOD WATCH REMAINS IN EFFECT FROM 10 PM AKDT THIS EVENING THROUGH LATE TUESDAY NIGHT"
+                    ],
+                    "BLOCKCHANNEL": [
+                        "EAS",
+                        "NWEM",
+                        "CMAS"
+                    ],
+                    "EAS-ORG": [
+                        "WXR"
+                    ],
+                    "VTEC": [
+                        "/O.CON.PAJK.FA.A.0004.261020T0600Z-261021T1200Z/"
+                    ],
+                    "eventEndingTime": [
+                        "2026-10-21T04:00:00-08:00"
+                    ],
+                    "expiredReferences": [
+                        "w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.2f06fc6275c0c7f0c4b83cb9b20549627213fd7b.001.1,2026-10-18T20:45:00-08:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.4da8fbbf1baa3d55ecfe51d13d80931cd56a7d9f.001.1,2026-10-18T12:33:00-08:00"
+                    ]
+                },
+                "scope": "Public",
+                "code": "IPAWSv1.0",
+                "language": "en-US",
+                "web": "http://www.weather.gov",
+                "eventCode": {
+                    "SAME": [
+                        "FFA"
+                    ],
+                    "NationalWeatherService": [
+                        "FAA"
+                    ]
+                }
+            }
+        },
+        {
+            "id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.bd966519e3b6f707f8613eafa727faf5b8bc5e93.002.1",
+            "type": "Feature",
+            "geometry": null,
+            "properties": {
+                "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.bd966519e3b6f707f8613eafa727faf5b8bc5e93.002.1",
+                "@type": "wx:Alert",
+                "id": "urn:oid:2.49.0.1.840.0.bd966519e3b6f707f8613eafa727faf5b8bc5e93.002.1",
+                "areaDesc": "City and Borough of Yakutat; Glacier Bay; City and Borough of Juneau",
+                "geocode": {
+                    "SAME": [
+                        "002282",
+                        "002105",
+                        "002110"
+                    ],
+                    "UGC": [
+                        "AKZ317",
+                        "AKZ320",
+                        "AKZ325"
+                    ]
+                },
+                "affectedZones": [
+                    "https://api.weather.gov/zones/forecast/AKZ317",
+                    "https://api.weather.gov/zones/forecast/AKZ320",
+                    "https://api.weather.gov/zones/forecast/AKZ325"
+                ],
+                "references": [
+                    {
+                        "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.4b1ff4be558afbb5e7cdef55d9d9f637922e8e4e.001.1",
+                        "identifier": "urn:oid:2.49.0.1.840.0.4b1ff4be558afbb5e7cdef55d9d9f637922e8e4e.001.1",
+                        "sender": "w-nws.webmaster@noaa.gov",
+                        "sent": "2026-10-19T06:34:00-08:00"
+                    },
+                    {
+                        "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.4b1ff4be558afbb5e7cdef55d9d9f637922e8e4e.002.1",
+                        "identifier": "urn:oid:2.49.0.1.840.0.4b1ff4be558afbb5e7cdef55d9d9f637922e8e4e.002.1",
+                        "sender": "w-nws.webmaster@noaa.gov",
+                        "sent": "2026-10-19T06:34:00-08:00"
+                    }
+                ],
+                "sent": "2026-10-19T15:22:00-08:00",
+                "effective": "2026-10-19T15:22:00-08:00",
+                "onset": "2026-10-19T22:00:00-08:00",
+                "expires": "2026-10-20T03:30:00-08:00",
+                "ends": "2026-10-21T04:00:00-08:00",
+                "status": "Actual",
+                "messageType": "Update",
+                "category": "Met",
+                "severity": "Severe",
+                "certainty": "Possible",
+                "urgency": "Future",
+                "event": "Flood Watch",
+                "sender": "w-nws.webmaster@noaa.gov",
+                "senderName": "NWS Juneau AK",
+                "headline": "Flood Watch issued October 19 at 3:22PM AKDT until October 21 at 4:00AM AKDT by NWS Juneau AK",
+                "description": "An atmospheric river, currently over the Yakutat area, is expected\nto continue through Tuesday. Multiple periods of heavy rain are\nexpected for the Icy Strait corridor and northeast Gulf Coast,\nincluding the following communities: Yakutat, Elfin Cove, Pelican,\nGustavus, Juneau. Elevated gusty winds are expected alongside this\nheavier rainfall, with the strongest winds from the southwest\nexpected late Tuesday morning into Tuesday afternoon. Prolonged\nperiods of moderate to heavy rain will produce significant river\nrises with the potential for at least minor flooding in Juneau and\nGustavus. Ponding of water in low-lying areas is also possible.\n\n* WHAT...Flooding caused by excessive rainfall continues to be\npossible.\n\n* WHERE...The following areas, Northeast Gulf Coast and Northern\nInner Channels. This includes the cities of Yakutat, Gustavus, And\nJuneau.\n\n* WHEN...From 10 PM AKDT this evening through late Tuesday night.\n\n* IMPACTS...Excessive runoff may result in flooding of rivers,\ncreeks, streams, other low-lying areas and flood-prone locations.\n\n* ADDITIONAL DETAILS...\n- Rain totals for the Yakutat area between this morning and Tuesday\nevening range between 4.5-7.0 inches, with greater than 9 inches\npossible at elevations greater than 1000 ft. For Gustavus, rain\ntotals ranging between 2-4 inches, exceeding 4 inches on south to\nsouthwest facing mountains along the outer coast, and exceeding 4\ninches on south to southwest facing mountains at elevation in\nGlacier Bay and around Gustavus.\n\nFor the Juneau area, rain totals have trended slightly down,\nranging between 2 and 3 inches with totals exceeding 4 inches at\nelevations greater than 4 inches. Highest rain rates are expected\novernight tonight into Tuesday with rain rates as high as 0.2\ninches per hour.",
+                "instruction": "Stay tuned to further developments by listening to your local radio,\ntelevision, or NOAA Weather Radio for further information.\n\nYou should monitor later forecasts and be alert for possible Flood\nWarnings. Those living in areas prone to flooding should be prepared\nto take action should flooding develop.",
+                "response": "Prepare",
+                "note": null,
+                "parameters": {
+                    "AWIPSidentifier": [
+                        "FFAAJK"
+                    ],
+                    "WMOidentifier": [
+                        "WGAK67 PAJK 192322"
+                    ],
+                    "NWSheadline": [
+                        "FLOOD WATCH REMAINS IN EFFECT FROM 10 PM AKDT THIS EVENING THROUGH LATE TUESDAY NIGHT"
+                    ],
+                    "BLOCKCHANNEL": [
+                        "EAS",
+                        "NWEM",
+                        "CMAS"
+                    ],
+                    "EAS-ORG": [
+                        "WXR"
+                    ],
+                    "VTEC": [
+                        "/O.CON.PAJK.FA.A.0004.261020T0600Z-261021T1200Z/"
+                    ],
+                    "eventEndingTime": [
+                        "2026-10-21T04:00:00-08:00"
+                    ],
+                    "expiredReferences": [
+                        "w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.2f06fc6275c0c7f0c4b83cb9b20549627213fd7b.002.1,2026-10-18T20:45:00-08:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.2f06fc6275c0c7f0c4b83cb9b20549627213fd7b.001.1,2026-10-18T20:45:00-08:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.4da8fbbf1baa3d55ecfe51d13d80931cd56a7d9f.002.1,2026-10-18T12:33:00-08:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.4da8fbbf1baa3d55ecfe51d13d80931cd56a7d9f.001.1,2026-10-18T12:33:00-08:00"
+                    ]
+                },
+                "scope": "Public",
+                "code": "IPAWSv1.0",
+                "language": "en-US",
+                "web": "http://www.weather.gov",
+                "eventCode": {
+                    "SAME": [
+                        "FFA"
+                    ],
+                    "NationalWeatherService": [
+                        "FAA"
+                    ]
+                }
+            }
+        },
+        {
+            "id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.a1fc850ca5d2ef577a6d7cd08f4158af4723319e.002.1",
+            "type": "Feature",
+            "geometry": null,
+            "properties": {
+                "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.a1fc850ca5d2ef577a6d7cd08f4158af4723319e.002.1",
+                "@type": "wx:Alert",
+                "id": "urn:oid:2.49.0.1.840.0.a1fc850ca5d2ef577a6d7cd08f4158af4723319e.002.1",
+                "areaDesc": "Eastern Alaska Range North of Trims Camp; Eastern Alaska Range South of Trims Camp",
+                "geocode": {
+                    "SAME": [
+                        "002240"
+                    ],
+                    "UGC": [
+                        "AKZ849",
+                        "AKZ850"
+                    ]
+                },
+                "affectedZones": [
+                    "https://api.weather.gov/zones/forecast/AKZ849",
+                    "https://api.weather.gov/zones/forecast/AKZ850"
+                ],
+                "references": [
+                    {
+                        "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.965d74fea761242e3d5ea971fde4d801aba230f9.001.1",
+                        "identifier": "urn:oid:2.49.0.1.840.0.965d74fea761242e3d5ea971fde4d801aba230f9.001.1",
+                        "sender": "w-nws.webmaster@noaa.gov",
+                        "sent": "2026-10-19T05:58:00-08:00"
+                    }
+                ],
+                "sent": "2026-10-19T10:08:00-08:00",
+                "effective": "2026-10-19T10:08:00-08:00",
+                "onset": "2026-10-19T10:08:00-08:00",
+                "expires": "2026-10-19T22:15:00-08:00",
+                "ends": "2026-10-22T04:00:00-08:00",
+                "status": "Actual",
+                "messageType": "Update",
+                "category": "Met",
+                "severity": "Severe",
+                "certainty": "Likely",
+                "urgency": "Expected",
+                "event": "Winter Storm Warning",
+                "sender": "w-nws.webmaster@noaa.gov",
+                "senderName": "NWS Fairbanks AK",
+                "headline": "Winter Storm Warning issued October 19 at 10:08AM AKDT until October 22 at 4:00AM AKDT by NWS Fairbanks AK",
+                "description": "* WHAT...Heavy snow expected. Total snow accumulations of 24 to 36\ninches expected above 2500 feet with higher amounts above pass\nlevel and 12 to 24 inches expected below 2500 feet. Winds could\ngust as high as 40 mph. Snowfall rates could exceed one inch an\nhour at times.\n\n* WHERE...Eastern Alaska Range.\n\n* WHEN...Until 4 AM AKDT Thursday.\n\n* IMPACTS...Travel could be very difficult to impossible. Areas of\nblowing snow could significantly reduce visibility.\n\n* ADDITIONAL DETAILS...Following strong southerly winds north of\nTrims Camp today, heavy snow is expected to build in today into\nTuesday and Wednesday as winds shift to being out of the north.",
+                "instruction": "If you must travel, keep an extra flashlight, food, water, and warm\nclothing in your vehicle in case of an emergency. Visit\n511.alaska.gov or call 5 1 1 for the latest road conditions.",
+                "response": "Prepare",
+                "note": null,
+                "parameters": {
+                    "AWIPSidentifier": [
+                        "WSWAFG"
+                    ],
+                    "WMOidentifier": [
+                        "WWAK43 PAFG 191808"
+                    ],
+                    "NWSheadline": [
+                        "WINTER STORM WARNING REMAINS IN EFFECT UNTIL 4 AM AKDT THURSDAY"
+                    ],
+                    "BLOCKCHANNEL": [
+                        "EAS",
+                        "NWEM",
+                        "CMAS"
+                    ],
+                    "EAS-ORG": [
+                        "WXR"
+                    ],
+                    "VTEC": [
+                        "/O.CON.PAFG.WS.W.0022.000000T0000Z-261022T1200Z/"
+                    ],
+                    "eventEndingTime": [
+                        "2026-10-22T04:00:00-08:00"
+                    ],
+                    "expiredReferences": [
+                        "w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.5bcf99b73db5941c7d57ec150e113a34c2c891ff.001.2,2026-10-18T14:59:00-08:00"
+                    ]
+                },
+                "scope": "Public",
+                "code": "IPAWSv1.0",
+                "language": "en-US",
+                "web": "http://www.weather.gov",
+                "eventCode": {
+                    "SAME": [
+                        "WSW"
+                    ],
+                    "NationalWeatherService": [
+                        "WSW"
+                    ]
+                }
+            }
+        },
+        {
+            "id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.a1fc850ca5d2ef577a6d7cd08f4158af4723319e.003.1",
+            "type": "Feature",
+            "geometry": null,
+            "properties": {
+                "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.a1fc850ca5d2ef577a6d7cd08f4158af4723319e.003.1",
+                "@type": "wx:Alert",
+                "id": "urn:oid:2.49.0.1.840.0.a1fc850ca5d2ef577a6d7cd08f4158af4723319e.003.1",
+                "areaDesc": "Fortymile Country; Upper Tanana Valley; Delta Junction",
+                "geocode": {
+                    "SAME": [
+                        "002240"
+                    ],
+                    "UGC": [
+                        "AKZ835",
+                        "AKZ836",
+                        "AKZ837"
+                    ]
+                },
+                "affectedZones": [
+                    "https://api.weather.gov/zones/forecast/AKZ835",
+                    "https://api.weather.gov/zones/forecast/AKZ836",
+                    "https://api.weather.gov/zones/forecast/AKZ837"
+                ],
+                "references": [
+                    {
+                        "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.965d74fea761242e3d5ea971fde4d801aba230f9.002.1",
+                        "identifier": "urn:oid:2.49.0.1.840.0.965d74fea761242e3d5ea971fde4d801aba230f9.002.1",
+                        "sender": "w-nws.webmaster@noaa.gov",
+                        "sent": "2026-10-19T05:58:00-08:00"
+                    }
+                ],
+                "sent": "2026-10-19T10:08:00-08:00",
+                "effective": "2026-10-19T10:08:00-08:00",
+                "onset": "2026-10-19T22:00:00-08:00",
+                "expires": "2026-10-19T22:15:00-08:00",
+                "ends": "2026-10-21T16:00:00-08:00",
+                "status": "Actual",
+                "messageType": "Update",
+                "category": "Met",
+                "severity": "Severe",
+                "certainty": "Likely",
+                "urgency": "Expected",
+                "event": "Winter Storm Warning",
+                "sender": "w-nws.webmaster@noaa.gov",
+                "senderName": "NWS Fairbanks AK",
+                "headline": "Winter Storm Warning issued October 19 at 10:08AM AKDT until October 21 at 4:00PM AKDT by NWS Fairbanks AK",
+                "description": "* WHAT...Heavy snow expected. Total snow accumulations of 6 to 12\ninches expected, with 1 to 3 inches expected from Northway to the\nAlcan Border along the Alaska Highway. Locally higher snow totals\nof 12 to 16 inches will be possible, especially between Tanacross\nand Dot Lake. Winds could gust as high as 35 mph. Rain may mix with\nsnow in the Upper Tanana Valley around Northway to the Alcan\nBorder.\n\n* WHERE...Delta Junction, Fortymile Country, and Upper Tanana Valley.\n\n* WHEN...From 10 PM this evening to 4 PM AKDT Wednesday.\n\n* IMPACTS...Travel could be very difficult. Areas of blowing snow\ncould significantly reduce visibility.\n\n* ADDITIONAL DETAILS...Northwest wind gusts may be as high as 35 mph\nTuesday morning into early Wednesday morning.",
+                "instruction": "If you must travel, keep an extra flashlight, food, water, and warm\nclothing in your vehicle in case of an emergency. Visit\n511.alaska.gov or call 5 1 1 for the latest road conditions.",
+                "response": "Prepare",
+                "note": null,
+                "parameters": {
+                    "AWIPSidentifier": [
+                        "WSWAFG"
+                    ],
+                    "WMOidentifier": [
+                        "WWAK43 PAFG 191808"
+                    ],
+                    "NWSheadline": [
+                        "WINTER STORM WARNING REMAINS IN EFFECT FROM 10 PM THIS EVENING TO 4 PM AKDT WEDNESDAY"
+                    ],
+                    "BLOCKCHANNEL": [
+                        "EAS",
+                        "NWEM",
+                        "CMAS"
+                    ],
+                    "EAS-ORG": [
+                        "WXR"
+                    ],
+                    "VTEC": [
+                        "/O.CON.PAFG.WS.W.0022.261020T0600Z-261022T0000Z/"
+                    ],
+                    "eventEndingTime": [
+                        "2026-10-21T16:00:00-08:00"
+                    ],
+                    "expiredReferences": [
+                        "w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.5bcf99b73db5941c7d57ec150e113a34c2c891ff.002.2,2026-10-18T14:59:00-08:00"
+                    ]
+                },
+                "scope": "Public",
+                "code": "IPAWSv1.0",
+                "language": "en-US",
+                "web": "http://www.weather.gov",
+                "eventCode": {
+                    "SAME": [
+                        "WSW"
+                    ],
+                    "NationalWeatherService": [
+                        "WSW"
+                    ]
+                }
+            }
+        },
+        {
+            "id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.a1fc850ca5d2ef577a6d7cd08f4158af4723319e.001.2",
+            "type": "Feature",
+            "geometry": null,
+            "properties": {
+                "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.a1fc850ca5d2ef577a6d7cd08f4158af4723319e.001.2",
+                "@type": "wx:Alert",
+                "id": "urn:oid:2.49.0.1.840.0.a1fc850ca5d2ef577a6d7cd08f4158af4723319e.001.2",
+                "areaDesc": "Tanana Flats; Eielson AFB and Salcha; Two Rivers",
+                "geocode": {
+                    "SAME": [
+                        "002090"
+                    ],
+                    "UGC": [
+                        "AKZ839",
+                        "AKZ840",
+                        "AKZ843"
+                    ]
+                },
+                "affectedZones": [
+                    "https://api.weather.gov/zones/forecast/AKZ839",
+                    "https://api.weather.gov/zones/forecast/AKZ840",
+                    "https://api.weather.gov/zones/forecast/AKZ843"
+                ],
+                "references": [],
+                "sent": "2026-10-19T10:08:00-08:00",
+                "effective": "2026-10-19T10:08:00-08:00",
+                "onset": "2026-10-20T10:00:00-08:00",
+                "expires": "2026-10-19T22:15:00-08:00",
+                "ends": "2026-10-21T16:00:00-08:00",
+                "status": "Actual",
+                "messageType": "Alert",
+                "category": "Met",
+                "severity": "Severe",
+                "certainty": "Likely",
+                "urgency": "Expected",
+                "event": "Winter Storm Warning",
+                "sender": "w-nws.webmaster@noaa.gov",
+                "senderName": "NWS Fairbanks AK",
+                "headline": "Winter Storm Warning issued October 19 at 10:08AM AKDT until October 21 at 4:00PM AKDT by NWS Fairbanks AK",
+                "description": "* WHAT...Heavy snow expected. Total snow accumulations between 5 and\n10 inches.\n\n* WHERE...Eielson AFB and Salcha, Harding Lake, and Two Rivers.\n\n* WHEN...From 10 AM Tuesday to 4 PM AKDT Wednesday.\n\n* IMPACTS...Travel could be very difficult.\n\n* ADDITIONAL DETAILS...A very sharp gradient between light and heavy\nsnow will develop on Tuesday. If this gradient is west of the area,\ntotals will likely end up on the higher end of this forecast range.\nIf the gradient is to the east of the area, snow accumulations will\nbe on the lower end of this range.",
+                "instruction": "If you must travel, keep an extra flashlight, food, and water in your\nvehicle in case of an emergency. Visit 511.alaska.gov or call 5 1 1\nfor the latest road conditions.",
+                "response": "Prepare",
+                "note": null,
+                "parameters": {
+                    "AWIPSidentifier": [
+                        "WSWAFG"
+                    ],
+                    "WMOidentifier": [
+                        "WWAK43 PAFG 191808"
+                    ],
+                    "NWSheadline": [
+                        "WINTER STORM WARNING IN EFFECT FROM 10 AM TUESDAY TO 4 PM AKDT WEDNESDAY"
+                    ],
+                    "BLOCKCHANNEL": [
+                        "EAS",
+                        "NWEM",
+                        "CMAS"
+                    ],
+                    "EAS-ORG": [
+                        "WXR"
+                    ],
+                    "VTEC": [
+                        "/O.EXA.PAFG.WS.W.0022.261020T1800Z-261022T0000Z/"
+                    ],
+                    "eventEndingTime": [
+                        "2026-10-21T16:00:00-08:00"
+                    ]
+                },
+                "scope": "Public",
+                "code": "IPAWSv1.0",
+                "language": "en-US",
+                "web": "http://www.weather.gov",
+                "eventCode": {
+                    "SAME": [
+                        "WSW"
+                    ],
+                    "NationalWeatherService": [
+                        "WSW"
+                    ]
+                }
+            }
+        },
+        {
+            "id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.a1fc850ca5d2ef577a6d7cd08f4158af4723319e.004.1",
+            "type": "Feature",
+            "geometry": null,
+            "properties": {
+                "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.a1fc850ca5d2ef577a6d7cd08f4158af4723319e.004.1",
+                "@type": "wx:Alert",
+                "id": "urn:oid:2.49.0.1.840.0.a1fc850ca5d2ef577a6d7cd08f4158af4723319e.004.1",
+                "areaDesc": "Yukon Flats; White Mountains and High Terrain South of the Yukon River; Upper Chena River Valley",
+                "geocode": {
+                    "SAME": [
+                        "002290",
+                        "002090"
+                    ],
+                    "UGC": [
+                        "AKZ833",
+                        "AKZ834",
+                        "AKZ838"
+                    ]
+                },
+                "affectedZones": [
+                    "https://api.weather.gov/zones/forecast/AKZ833",
+                    "https://api.weather.gov/zones/forecast/AKZ834",
+                    "https://api.weather.gov/zones/forecast/AKZ838"
+                ],
+                "references": [
+                    {
+                        "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.965d74fea761242e3d5ea971fde4d801aba230f9.003.1",
+                        "identifier": "urn:oid:2.49.0.1.840.0.965d74fea761242e3d5ea971fde4d801aba230f9.003.1",
+                        "sender": "w-nws.webmaster@noaa.gov",
+                        "sent": "2026-10-19T05:58:00-08:00"
+                    }
+                ],
+                "sent": "2026-10-19T10:08:00-08:00",
+                "effective": "2026-10-19T10:08:00-08:00",
+                "onset": "2026-10-20T10:00:00-08:00",
+                "expires": "2026-10-19T22:15:00-08:00",
+                "ends": "2026-10-21T16:00:00-08:00",
+                "status": "Actual",
+                "messageType": "Update",
+                "category": "Met",
+                "severity": "Severe",
+                "certainty": "Likely",
+                "urgency": "Expected",
+                "event": "Winter Storm Warning",
+                "sender": "w-nws.webmaster@noaa.gov",
+                "senderName": "NWS Fairbanks AK",
+                "headline": "Winter Storm Warning issued October 19 at 10:08AM AKDT until October 21 at 4:00PM AKDT by NWS Fairbanks AK",
+                "description": "* WHAT...Heavy snow expected. Total snow accumulations of 5 to 10\ninches expected. Wind could gust as high as 35 mph across higher\nelevations.\n\n* WHERE...Upper Chena River Valley, Southern and Eastern Yukon Flats,\nWhite Mountains, and Eagle Summit.\n\n* WHEN...From 10 AM Tuesday to 4 PM AKDT Wednesday.\n\n* IMPACTS...Travel could be very difficult. Gusty winds could lead to\nareas of blowing snow which could reduce visibility below one half\nmile at times.\n\n* ADDITIONAL DETAILS...There will be a narrow snow gradient. The\nhighest potential for heaviest snow lies southeast of Fort Yukon.\nWest and north of there, the likelihood for heavier snow drops\nquickly. Locations near Beaver and Livengood may end up getting\ncloser to 2 to 4 inches or less.",
+                "instruction": "If you must travel, keep an extra flashlight, food, water, and warm\nclothing in your vehicle in case of an emergency. Visit\n511.alaska.gov or call 5 1 1 for the latest road conditions.",
+                "response": "Prepare",
+                "note": null,
+                "parameters": {
+                    "AWIPSidentifier": [
+                        "WSWAFG"
+                    ],
+                    "WMOidentifier": [
+                        "WWAK43 PAFG 191808"
+                    ],
+                    "NWSheadline": [
+                        "WINTER STORM WARNING REMAINS IN EFFECT FROM 10 AM TUESDAY TO 4 PM AKDT WEDNESDAY"
+                    ],
+                    "BLOCKCHANNEL": [
+                        "EAS",
+                        "NWEM",
+                        "CMAS"
+                    ],
+                    "EAS-ORG": [
+                        "WXR"
+                    ],
+                    "VTEC": [
+                        "/O.CON.PAFG.WS.W.0022.261020T1800Z-261022T0000Z/"
+                    ],
+                    "eventEndingTime": [
+                        "2026-10-21T16:00:00-08:00"
+                    ],
+                    "expiredReferences": [
+                        "w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.5bcf99b73db5941c7d57ec150e113a34c2c891ff.003.2,2026-10-18T14:59:00-08:00"
+                    ]
+                },
+                "scope": "Public",
+                "code": "IPAWSv1.0",
+                "language": "en-US",
+                "web": "http://www.weather.gov",
+                "eventCode": {
+                    "SAME": [
+                        "WSW"
+                    ],
+                    "NationalWeatherService": [
+                        "WSW"
+                    ]
+                }
+            }
+        },
+        {
+            "id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.658dc4e5dae666306649f395305d42ff37cae055.001.1",
+            "type": "Feature",
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                    [
+                        [
+                            -81.5,
+                            29.08
+                        ],
+                        [
+                            -81.69,
+                            29.32
+                        ],
+                        [
+                            -81.57,
+                            29.35
+                        ],
+                        [
+                            -81.42,
+                            29.1
+                        ],
+                        [
+                            -81.5,
+                            29.08
+                        ]
+                    ]
+                ]
+            },
+            "properties": {
+                "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.658dc4e5dae666306649f395305d42ff37cae055.001.1",
+                "@type": "wx:Alert",
+                "id": "urn:oid:2.49.0.1.840.0.658dc4e5dae666306649f395305d42ff37cae055.001.1",
+                "areaDesc": "Lake, FL; Volusia, FL",
+                "geocode": {
+                    "SAME": [
+                        "012069",
+                        "012127"
+                    ],
+                    "UGC": [
+                        "FLC069",
+                        "FLC127"
+                    ]
+                },
+                "affectedZones": [
+                    "https://api.weather.gov/zones/county/FLC069",
+                    "https://api.weather.gov/zones/county/FLC127"
+                ],
+                "references": [
+                    {
+                        "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.ae8e54e11e9105fc7e4866ee9a809176c3d3d8bf.001.1",
+                        "identifier": "urn:oid:2.49.0.1.840.0.ae8e54e11e9105fc7e4866ee9a809176c3d3d8bf.001.1",
+                        "sender": "w-nws.webmaster@noaa.gov",
+                        "sent": "2026-10-18T20:58:00-04:00"
+                    }
+                ],
+                "sent": "2026-10-19T09:56:00-04:00",
+                "effective": "2026-10-19T09:56:00-04:00",
+                "onset": "2026-10-19T09:56:00-04:00",
+                "expires": "2026-10-19T23:15:00-04:00",
+                "ends": null,
+                "status": "Actual",
+                "messageType": "Update",
+                "category": "Met",
+                "severity": "Severe",
+                "certainty": "Observed",
+                "urgency": "Immediate",
+                "event": "Flood Warning",
+                "sender": "w-nws.webmaster@noaa.gov",
+                "senderName": "NWS Melbourne FL",
+                "headline": "Flood Warning issued October 19 at 9:56AM EDT by NWS Melbourne FL",
+                "description": "...The Flood Warning continues for the following rivers in Florida...\n\nSt Johns River Near Astor affecting Lake and Volusia Counties.\n\n.Persistent northeast winds have caused river levels on the St Johns\nat Astor to rise into Moderate Flood Stage this morning. The river is\nforecast to climb slowly through Moderate Flood Stage through the end\nof this week.\n\nFor the St. Johns River...including Astor...Moderate flooding is\nforecast.\n\n* WHAT...Moderate flooding is occurring and moderate flooding is\nforecast.\n\n* WHERE...St Johns River near Astor.\n\n* WHEN...Until further notice.\n\n* IMPACTS...At 3.0 feet, Water approaches or may enter lowest homes\non or near Wildhog Road and nearby canals. Flooding reaches the\nparking lot of the Juno Trail Apartments. Flooding on portions of\nAlligator Road and Holiday Road. Lowest lying yards along Blue\nCreek are flooded. Roads at Astor Landing Campground and Lake\nDexter Boat Ramp begin to flood. Water enters lower homes closest\nto the river on McPherson Lane.\n\nAt 3.5 feet, Canals have overflowed into yards. Homes on or near\nWildhog and Bonnet roads become inaccessible with several inches of\nwater inside homes along the river and canals. Docks at Astor Bridge\nmarina and throughout Astor are completely submerged. Bartram Rd and\nHoliday Circle are inaccessible with yards completely submerged.\nClair Street is inaccessible. Roads flooded in South Moon Fish Camp,\ndocks and yards at condominiums on Juno Trail and water breaches the\nsea wall at Blair's Jungle Den.\n\n* ADDITIONAL DETAILS...\n- At 8:30 AM EDT Monday the stage was 3.0 feet.\n- Bankfull stage is 2.0 feet.\n- Recent Activity...The maximum river stage in the 24 hours ending\nat 8:30 AM EDT Monday was 3.0 feet.\n- Forecast...The river is expected to remain steady above flood\nstage at 3.1 feet.\n- Flood stage is 2.3 feet.\n- http://www.weather.gov/safety/flood",
+                "instruction": "Motorists should not attempt to drive around barricades or drive cars\nthrough flooded areas.\n\nCaution is urged when walking near riverbanks.\n\nAdditional information is available at www.weather.gov.\n\nThe next statement will be issued this evening at 1115 PM EDT.",
+                "response": "Avoid",
+                "note": null,
+                "parameters": {
+                    "AWIPSidentifier": [
+                        "FLSMLB"
+                    ],
+                    "WMOidentifier": [
+                        "WGUS82 KMLB 191356"
+                    ],
+                    "NWSheadline": [
+                        "FLOOD WARNING REMAINS IN EFFECT UNTIL FURTHER NOTICE"
+                    ],
+                    "BLOCKCHANNEL": [
+                        "EAS",
+                        "NWEM",
+                        "CMAS"
+                    ],
+                    "EAS-ORG": [
+                        "WXR"
+                    ],
+                    "VTEC": [
+                        "/O.CON.KMLB.FL.W.0003.000000T0000Z-000000T0000Z/"
+                    ],
+                    "expiredReferences": [
+                        "w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.e267454960d05028ffb17d918dbfe239270f59aa.001.1,2026-10-18T09:11:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.ec86a5b25822e52f8e371f554242bdd67483342f.001.1,2026-10-17T20:54:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.7f1892302e6e287d1231cf4d12f60f419868b375.001.1,2026-10-17T09:04:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.8aa4ca8f0a91b6616676b40340c36ef2b6f9788d.001.1,2026-10-16T21:21:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.dfc8045564b49517706a7715d068ca72ead6ebb3.001.1,2026-10-16T10:44:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.7e5a6b135466609b1033d13cc0d52d1891c646cf.001.1,2026-10-15T21:36:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.0102843d75ecf5c8efce3bbb90291fc98fa94c78.001.1,2026-10-15T15:34:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.ece4802e04c97e36732b09ba56c6d3b0cce4d6b0.001.1,2026-10-15T08:56:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.011da60a226f747f480bb13e59db22de16ce56bc.001.1,2026-10-14T21:34:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.01cad9b4e67f37952508b00d4685605493f467ec.001.1,2026-10-14T09:36:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.cacb082fe46e65e21cf29078d2437d1e542052ac.001.1,2026-10-13T21:38:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.86e5ca154ce010d13141ad4199d0f6fac1291abb.001.1,2026-10-13T10:11:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.4517560c40277faebb26d5855ccac4fd7e44860c.001.1,2026-10-12T21:06:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.20f1624737d138d123829411894af55024fce115.001.1,2026-10-12T10:19:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.ea811d5fb114d663e21d6b716b75c3dfbb56ce7b.001.1,2026-10-11T21:51:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.fcb53b77fafcd10f7f3046434d04cef22dd0bca6.001.1,2026-10-11T11:01:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.b426cf88562c3f2344793ae431fbc46ad7363ab7.001.1,2026-10-10T21:43:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.a7086518664f7fe6da003a715a0944cf95960638.001.1,2026-10-10T12:14:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.e2e9ae2594103671ac374c677fd0eac7bef3a271.001.1,2026-10-09T20:39:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.8a3dd7595a5686c7b226150184ef3ef916f9c33d.001.1,2026-10-09T08:52:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.36254b6b2cc30b96af78b5ddccf3eecd597d2c5e.001.1,2026-10-09T00:09:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.8757dc22c528c67fe6f6c1975d46b5b177ecb9a3.001.1,2026-10-08T21:59:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.52572978a4c286c19f5039b707506f65bb11d4f0.001.1,2026-10-08T22:34:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.4005b1c5d9f2d912d3640b6fd16da3a7dfa314b0.001.1,2026-10-08T10:05:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.3291d526cabe593657cc11dd69dad3433dc800f5.001.1,2026-10-08T09:58:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.2d26e4d2ee1b9e255115bd0b478eb1efdecbdd34.001.1,2026-10-07T19:36:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.e5435b68e1ad2031724f8b67da651e8b47f906f1.001.1,2026-10-07T14:30:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.a3489ac5dc4a2782ddacffcbc40bd6c036b56e1c.001.1,2026-10-06T21:45:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.9e4d9436c0e7b6043fa60b5d83484fce1dfd4ab4.001.1,2026-10-06T07:40:00-04:00"
+                    ]
+                },
+                "scope": "Public",
+                "code": "IPAWSv1.0",
+                "language": "en-US",
+                "web": "http://www.weather.gov",
+                "eventCode": {
+                    "SAME": [
+                        "FLS"
+                    ],
+                    "NationalWeatherService": [
+                        "FLW"
+                    ]
+                }
+            }
+        },
+        {
+            "id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.fd37b0e82ea8461be590beca2d9f35870a742a77.001.1",
+            "type": "Feature",
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                    [
+                        [
+                            -81.84,
+                            31.29
+                        ],
+                        [
+                            -81.83,
+                            31.14
+                        ],
+                        [
+                            -81.9,
+                            31.14
+                        ],
+                        [
+                            -81.91,
+                            31.28
+                        ],
+                        [
+                            -81.84,
+                            31.29
+                        ]
+                    ]
+                ]
+            },
+            "properties": {
+                "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.fd37b0e82ea8461be590beca2d9f35870a742a77.001.1",
+                "@type": "wx:Alert",
+                "id": "urn:oid:2.49.0.1.840.0.fd37b0e82ea8461be590beca2d9f35870a742a77.001.1",
+                "areaDesc": "Brantley, GA",
+                "geocode": {
+                    "SAME": [
+                        "013025"
+                    ],
+                    "UGC": [
+                        "GAC025"
+                    ]
+                },
+                "affectedZones": [
+                    "https://api.weather.gov/zones/county/GAC025"
+                ],
+                "references": [
+                    {
+                        "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.cb7a65afb7186ed8fde265b4e0c2ae91be88bcd0.001.1",
+                        "identifier": "urn:oid:2.49.0.1.840.0.cb7a65afb7186ed8fde265b4e0c2ae91be88bcd0.001.1",
+                        "sender": "w-nws.webmaster@noaa.gov",
+                        "sent": "2026-10-18T20:57:00-04:00"
+                    }
+                ],
+                "sent": "2026-10-19T09:33:00-04:00",
+                "effective": "2026-10-19T09:33:00-04:00",
+                "onset": "2026-10-19T09:33:00-04:00",
+                "expires": "2026-10-20T09:45:00-04:00",
+                "ends": null,
+                "status": "Actual",
+                "messageType": "Update",
+                "category": "Met",
+                "severity": "Severe",
+                "certainty": "Observed",
+                "urgency": "Immediate",
+                "event": "Flood Warning",
+                "sender": "w-nws.webmaster@noaa.gov",
+                "senderName": "NWS Jacksonville FL",
+                "headline": "Flood Warning issued October 19 at 9:33AM EDT by NWS Jacksonville FL",
+                "description": "...The Flood Warning continues for the following rivers in southeast\nGeorgia...\n\nSatilla River At Atkinson affecting Brantley County.\n\nAdditional information is available at\nhttps://water.weather.gov/wfo/JAX\n\nThe next statement will be issued Tuesday morning at 945 AM EDT.\n\n* WHAT...Minor flooding is occurring and minor flooding is forecast.\n\n* WHERE...Satilla River at Atkinson.\n\n* WHEN...Until further notice.\n\n* IMPACTS...At 13.0 feet, Warners Landing, Louis Landing and\nsecondary roads around KOA campgrounds begin to flood. At 14.0\nfeet, River Rock Road begins to experience flooding across the\nroad.\n\n* ADDITIONAL DETAILS...\n- At 8:45 AM EDT Monday the stage was 14.2 feet.\n- Forecast...The river is expected to crest around 14.2 feet this\nafternoon, with a slow falling trend the remainder of the week.\n- Flood stage is 13.0 feet.\n- http://www.weather.gov/safety/flood",
+                "instruction": null,
+                "response": "Avoid",
+                "note": null,
+                "parameters": {
+                    "AWIPSidentifier": [
+                        "FLSJAX"
+                    ],
+                    "WMOidentifier": [
+                        "WGUS82 KJAX 191333"
+                    ],
+                    "NWSheadline": [
+                        "FLOOD WARNING REMAINS IN EFFECT UNTIL FURTHER NOTICE"
+                    ],
+                    "BLOCKCHANNEL": [
+                        "EAS",
+                        "NWEM",
+                        "CMAS"
+                    ],
+                    "EAS-ORG": [
+                        "WXR"
+                    ],
+                    "VTEC": [
+                        "/O.CON.KJAX.FL.W.0005.000000T0000Z-000000T0000Z/"
+                    ],
+                    "expiredReferences": [
+                        "w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.b03f3db7c7390b280878b80c4c7ed59358c197d0.001.1,2026-10-18T09:10:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.b778fad9fc2749e5bb349a0b4486cee7880b8d77.001.1,2026-10-17T21:06:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.c1ec859e9a14acb2fb7befaf5f65d94eb195833f.001.1,2026-10-17T09:20:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.1c4dea01c6de97fa8993685c2ad5548540c25284.001.1,2026-10-16T21:20:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.d7861ce738923ed8aded1326c1d6f382d3f9efc9.001.1,2026-10-16T10:49:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.653132968adbd16882faecbfc121f9a27422b6ac.001.1,2026-10-15T20:49:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.ca4ddf7e5a7eff621ee3b2b2beef45f481db1da8.001.1,2026-10-15T09:18:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.8891c0e32a88f76b874caf8c3848901811853de3.001.1,2026-10-14T20:44:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.3455a377a46746a59855afb791ebc2cee137d2aa.001.1,2026-10-14T09:12:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.fa51a9cdec34014b8f8fb93f46061f178e9c006a.001.1,2026-10-13T20:53:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.7414d44ef8a33988ac09b31b44c38b584c49a611.001.1,2026-10-13T09:44:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.2e6e76291e6b45c5be667c99f69fed9a2b54ad4b.001.1,2026-10-12T20:34:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.8ddaaf8ae3fc804a98854c02c97a5bb7558eed37.001.1,2026-10-12T10:37:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.abb44dceb54175aa2318b2bf60de3fcac4468630.002.1,2026-10-11T21:09:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.01fb1a47c63d4f008d23a8a44c5c11d471c64294.001.1,2026-10-11T11:56:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.3cece0691f39c2493f3e21c9a99d3529dc218d3c.001.1,2026-10-10T21:13:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.0b9239386efcf7720733176454a25bab2e7c0861.001.1,2026-10-10T09:51:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.e4f85e94638413b699a4cc78663b4eed2bfaea06.001.1,2026-10-09T21:33:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.f95e48811d1dc0eb54f5610c6e692ea2ef459471.001.1,2026-10-09T18:23:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.55633e996a312f5ddfbf4ce1cba183f664179071.001.1,2026-10-09T15:01:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.dd475782f7c09ab1b5ca1c75cc2317269d637d83.001.1,2026-10-09T09:24:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.cf1e76e3ecb8eed946b7fd81edaa41ee3646e935.001.1,2026-10-08T21:15:00-04:00"
+                    ]
+                },
+                "scope": "Public",
+                "code": "IPAWSv1.0",
+                "language": "en-US",
+                "web": "http://www.weather.gov",
+                "eventCode": {
+                    "SAME": [
+                        "FLS"
+                    ],
+                    "NationalWeatherService": [
+                        "FLW"
+                    ]
+                }
+            }
+        },
+        {
+            "id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.d713d7beae227be88ab31f00e1d5b3d7c1d962ce.003.1",
+            "type": "Feature",
+            "geometry": null,
+            "properties": {
+                "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.d713d7beae227be88ab31f00e1d5b3d7c1d962ce.003.1",
+                "@type": "wx:Alert",
+                "id": "urn:oid:2.49.0.1.840.0.d713d7beae227be88ab31f00e1d5b3d7c1d962ce.003.1",
+                "areaDesc": "Gulf of Alaska Offshore South of 57N North of 55N and West of 144W",
+                "geocode": {
+                    "SAME": [
+                        "058352"
+                    ],
+                    "UGC": [
+                        "PKZ352"
+                    ]
+                },
+                "affectedZones": [
+                    "https://api.weather.gov/zones/forecast/PKZ352"
+                ],
+                "references": [],
+                "sent": "2026-10-19T04:02:00-08:00",
+                "effective": "2026-10-19T04:02:00-08:00",
+                "onset": "2026-10-20T05:00:00-08:00",
+                "expires": "2026-10-19T16:15:00-08:00",
+                "ends": "2026-10-20T17:00:00-08:00",
+                "status": "Actual",
+                "messageType": "Alert",
+                "category": "Met",
+                "severity": "Severe",
+                "certainty": "Observed",
+                "urgency": "Immediate",
+                "event": "Storm Warning",
+                "sender": "w-nws.webmaster@noaa.gov",
+                "senderName": "NWS Anchorage AK",
+                "headline": "Storm Warning issued October 19 at 4:02AM AKDT until October 20 at 5:00PM AKDT by NWS Anchorage AK",
+                "description": "Offshore waters forecast for the Gulf of Alaska West of 144W\n\nWind forecasts reflect the predominant speed and direction\nexpected. Sea forecasts represent an average of the highest\none-third of the combined wind wave and swell height.\n\n.TODAY...S wind 20 to 35 kt. Seas 11 to 16 ft. Rain.\n.TONIGHT...SW wind 20 to 35 kt increasing to 30 to 45 kt after\nmidnight. Seas 13 to 21 ft. Rain.\n.TUE...W wind 35 to 50 kt becoming 40 kt in the afternoon. Seas 16\nto 24 ft.\n.TUE NIGHT...W wind 30 to 40 kt. Seas 16 to 19 ft.\n.WED...W wind 20 to 30 kt. Seas 11 to 17 ft.\n.THU...NW wind 10 to 25 kt. Seas 7 to 12 ft.\n.FRI...E wind 15 kt. Seas 3 to 6 ft.",
+                "instruction": null,
+                "response": "Avoid",
+                "note": null,
+                "parameters": {
+                    "AWIPSidentifier": [
+                        "OFFAER"
+                    ],
+                    "WMOidentifier": [
+                        "FZAK61 PAFC 191202"
+                    ],
+                    "NWSheadline": [
+                        "STORM WARNING TUESDAY"
+                    ],
+                    "BLOCKCHANNEL": [
+                        "EAS",
+                        "NWEM",
+                        "CMAS"
+                    ],
+                    "VTEC": [
+                        "/O.NEW.PAFC.SR.W.6705.261020T1300Z-261021T0100Z/"
+                    ],
+                    "eventEndingTime": [
+                        "2026-10-20T17:00:00-08:00"
+                    ]
+                },
+                "scope": "Public",
+                "code": "IPAWSv1.0",
+                "language": "en-US",
+                "web": "http://www.weather.gov",
+                "eventCode": {
+                    "SAME": [
+                        "NWS"
+                    ],
+                    "NationalWeatherService": [
+                        "SRW"
+                    ]
+                }
+            }
+        }
+    ],
+    "title": "Current watches, warnings, and advisories",
+    "updated": "2026-10-20T01:30:00+00:00"
+}

@@ -1,0 +1,13 @@
+_gradle-home/
+.gradle/
+build/
+app/build/
+local.properties
+app/google-services.json
+_secrets/
+_data/
+*.apk
+__pycache__/
+*.pyc
+app/libs/
+app/src/main/assets/aeolia/samsung/

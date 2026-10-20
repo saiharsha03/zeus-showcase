@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Zeus Icons</title>
+<style>
+:root{--bg:#14110E;--ink:#F4EFE6;--muted:#A79F93;--line:#2A251F}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,sans-serif}
+main{max-width:1000px;margin:0 auto;padding:24px 16px}
+h1{font-size:22px;margin:0 0 4px}p{color:var(--muted);margin:0 0 20px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:20px}
+.opt{border:1px solid var(--line);border-radius:18px;padding:18px;text-align:center}
+.opt>svg{width:160px;height:160px;border-radius:36px;display:block;margin:0 auto 12px}
+.small{display:flex;justify-content:center;gap:14px;margin-bottom:12px}
+.small svg{width:48px;height:48px;border-radius:12px}.small .r{border-radius:50%}
+b{display:block;font-size:17px;margin-bottom:4px}span{color:var(--muted);font-size:13px}
+</style></head><body><main>
+<h1>Zeus: icon options</h1>
+<p>Warm charcoal, saffron and paper, no purple. Each one is shown large, at launcher size, and as a circle.</p>
+<div class="grid" id="g"></div></main>
+<script>
+const BG='#1A1612',INK='#F4EFE6',SAF='#E8A33D',DEEP='#B9782A';
+const I={
+ bolt:{t:'Thunderbolt',d:'The classic Zeus mark. Bold, and readable at any size.',s:`<rect width="100" height="100" fill="${BG}"/>
+  <path d="M57 12L28 56h18l-6 32 32-46H54z" fill="${SAF}"/><path d="M57 12L28 56h18" fill="none" stroke="${DEEP}" stroke-width="2" opacity=".5"/>`},
+ owlbolt:{t:'Bolt + owl eye',d:'A thunderbolt with an owl eye at its heart: Athena, the brain, inside Zeus.',s:`<rect width="100" height="100" fill="${BG}"/>
+  <path d="M57 12L28 56h18l-6 32 32-46H54z" fill="${SAF}"/>
+  <circle cx="50" cy="50" r="11" fill="${BG}"/><circle cx="50" cy="50" r="6" fill="${INK}"/><circle cx="48" cy="48" r="2" fill="${BG}"/>`},
+ eagle:{t:'Eagle',d:"Zeus's eagle, wings spread. More character, slightly busier when small.",s:`<rect width="100" height="100" fill="${BG}"/>
+  <path d="M50 34c-6 0-9 5-9 10v6l-27-14c4 14 12 22 24 26l-6 14h36l-6-14c12-4 20-12 24-26L59 50v-6c0-5-3-10-9-10z" fill="${INK}"/>
+  <path d="M50 36l4 6h-8z" fill="${SAF}"/><circle cx="47" cy="44" r="1.8" fill="${BG}"/>`},
+ laurel:{t:'Laurel + bolt',d:'A laurel crown around a small bolt. Regal and calm.',s:`<rect width="100" height="100" fill="${BG}"/>
+  <g fill="${INK}">${Array.from({length:7},(_,i)=>{const a=(200+i*20)*Math.PI/180,x=50+30*Math.cos(a),y=52+30*Math.sin(a);return `<ellipse cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" rx="7" ry="3.2" transform="rotate(${(200+i*20+90).toFixed(0)} ${x.toFixed(1)} ${y.toFixed(1)})"/>`}).join('')}
+  ${Array.from({length:7},(_,i)=>{const a=(-20-i*20)*Math.PI/180,x=50+30*Math.cos(a),y=52+30*Math.sin(a);return `<ellipse cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" rx="7" ry="3.2" transform="rotate(${(-20-i*20+90).toFixed(0)} ${x.toFixed(1)} ${y.toFixed(1)})"/>`}).join('')}</g>
+  <path d="M54 30L40 54h9l-3 18 15-25h-8z" fill="${SAF}"/>`},
+ z:{t:'Z monogram',d:'A Z cut like a lightning stroke. Minimal, like a product logo.',s:`<rect width="100" height="100" fill="${BG}"/>
+  <path d="M28 26h44L44 58h18l-8 16h26" fill="none" stroke="${SAF}" stroke-width="9" stroke-linejoin="miter" stroke-linecap="square"/>`},
+};
+const g=document.getElementById('g');
+for(const v of Object.values(I)){const svg=`<svg viewBox="0 0 100 100">${v.s}</svg>`;
+ g.insertAdjacentHTML('beforeend',`<div class="opt">${svg}<div class="small">${svg}<svg class="r" viewBox="0 0 100 100">${v.s}</svg></div><b>${v.t}</b><span>${v.d}</span></div>`)}
+</script></body></html>

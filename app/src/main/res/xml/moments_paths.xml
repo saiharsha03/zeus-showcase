@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Moments: the box photo, one file in the cache, deleted after it has been read. -->
+<paths>
+    <cache-path name="box" path="box/" />
+</paths>

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A closet render, fitted onto its own background colour (pic_fill is tinted to it). -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/pic_frame"
+    android:layout_width="0dp"
+    android:layout_height="96dp"
+    android:layout_weight="1"
+    android:layout_marginEnd="6dp"
+    android:background="@drawable/widget_pic_bg"
+    android:clipToOutline="true">
+    <ImageView
+        android:id="@+id/pic_fill"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:src="@drawable/widget_pic_bg"
+        android:scaleType="fitXY"
+        android:importantForAccessibility="no" />
+    <ImageView
+        android:id="@+id/pic_img"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:padding="6dp"
+        android:scaleType="fitCenter" />
+</FrameLayout>

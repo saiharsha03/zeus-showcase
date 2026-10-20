@@ -1,0 +1,53 @@
+[
+  {
+    "ID": "NYSDOT-1123401",
+    "RegionName": "Western New York",
+    "CountyName": "Erie",
+    "Severity": "Major",
+    "RoadwayName": "I-190",
+    "DirectionOfTravel": "Southbound",
+    "Description": "Crash on I-190 southbound near Exit 7 (NY 198). Right lane closed.",
+    "Location": "I-190 southbound near Exit 7",
+    "LanesAffected": "1 Right lane",
+    "LanesStatus": "closed",
+    "EventType": "accidentsAndIncidents",
+    "EventSubType": "crash",
+    "LastUpdated": "20/10/2026 08:02:11",
+    "Latitude": 42.9125,
+    "Longitude": -85.6946,
+    "PlannedEndDate": null,
+    "Reported": "20/10/2026 07:51:40",
+    "StartDate": "20/10/2026 07:51:40"
+  },
+  {
+    "ID": "NYSDOT-1123899",
+    "RegionName": "New York City",
+    "CountyName": "Kings",
+    "Severity": "Minor",
+    "RoadwayName": "I-278",
+    "DirectionOfTravel": "Eastbound",
+    "Description": "Construction on I-278 eastbound at Exit 25. Left lane closed.",
+    "EventType": "roadwork",
+    "Latitude": 40.6782,
+    "Longitude": -73.9442
+  },
+  {
+    "ID": "NYSDOT-1124001",
+    "RegionName": "Western New York",
+    "CountyName": "Erie",
+    "Severity": "Minor",
+    "RoadwayName": "Oak Avenue",
+    "DirectionOfTravel": "Northbound",
+    "Description": "Special event at the park.",
+    "EventType": "specialEvents",
+    "Latitude": 42.93,
+    "Longitude": -85.67
+  },
+  {
+    "ID": "NYSDOT-1124002",
+    "RegionName": "Western New York",
+    "RoadwayName": "NY 33",
+    "Description": "No coordinates on this one.",
+    "EventType": "closures"
+  }
+]

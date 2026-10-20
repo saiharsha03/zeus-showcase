@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-feature android:name="android.hardware.type.watch" />
+    <!-- No INTERNET: the watch only talks to the phone, through Play services' Data Layer. -->
+
+    <application
+        android:label="Zeus"
+        android:icon="@drawable/ic_zeus"
+        android:allowBackup="false"
+        android:theme="@android:style/Theme.DeviceDefault">
+
+        <!-- Needs the phone app; it does nothing on its own. -->
+        <meta-data android:name="com.google.android.wearable.standalone" android:value="false" />
+
+        <service
+            android:name=".ZeusTileService"
+            android:exported="true"
+            android:label="Zeus"
+            android:icon="@drawable/ic_zeus"
+            android:permission="com.google.android.wearable.permission.BIND_TILE_PROVIDER">
+            <intent-filter><action android:name="androidx.wear.tiles.action.BIND_TILE_PROVIDER" /></intent-filter>
+            <meta-data android:name="androidx.wear.tiles.PREVIEW" android:resource="@drawable/ic_zeus" />
+        </service>
+
+        <!-- The phone's tile data (next event, top task). -->
+        <service android:name=".WatchListener" android:exported="true">
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.DATA_CHANGED" />
+                <data android:scheme="wear" android:host="*" android:path="/zeus/tile" />
+            </intent-filter>
+        </service>
+
+        <activity android:name=".WeightActivity" android:exported="true" android:label="Log weight" android:taskAffinity="">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

@@ -1,0 +1,57 @@
+<!doctype html>
+<!-- Lemnos terminal: xterm.js 5.5.0 (from Claw), offline. The page makes no network calls of its own
+     (the WebView blocks them); bytes come and go through the Zeus bridge, which holds the mTLS socket. -->
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<link rel="stylesheet" href="xterm.min.css">
+<style>
+  @font-face { font-family: "Geist Mono"; src: url(geist-mono-400.woff2) format("woff2"); }
+  html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
+  #t { position: absolute; inset: 4px 2px 2px 6px; }
+  .xterm .xterm-viewport { scrollbar-width: none; }
+  .xterm .xterm-viewport::-webkit-scrollbar { display: none; }
+</style>
+</head>
+<body>
+<div id="t"></div>
+<script src="xterm.min.js"></script>
+<script>
+  let term = null, size = 12;
+  const dec = (b64) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+  function fit() {
+    if (!term) return;
+    const el = document.getElementById("t");
+    const d = term._core && term._core._renderService && term._core._renderService.dimensions;
+    const cw = (d && d.css && d.css.cell && d.css.cell.width) || size * 0.6, ch = (d && d.css && d.css.cell && d.css.cell.height) || size * 1.25;
+    const cols = Math.max(20, Math.floor(el.clientWidth / cw)), rows = Math.max(6, Math.floor(el.clientHeight / ch));
+    if (cols !== term.cols || rows !== term.rows) term.resize(cols, rows);
+    Zeus.resize(term.cols, term.rows);
+  }
+  // Called by Zeus once the page is up: colours from the app's tokens.
+  function zinit(o) {
+    size = o.size || 12;
+    term = new Terminal({
+      fontFamily: '"Geist Mono", monospace', fontSize: size, lineHeight: 1.15, cursorBlink: true, scrollback: 5000,
+      allowTransparency: true, macOptionIsMeta: true,
+      theme: { background: "rgba(0,0,0,0)", foreground: o.fg, cursor: o.accent, cursorAccent: o.bg, selectionBackground: o.sel },
+    });
+    term.open(document.getElementById("t"));
+    term.onData((d) => Zeus.input(d));
+    term.onBinary((d) => Zeus.input(d));
+    document.fonts.ready.then(fit);
+    new ResizeObserver(() => { clearTimeout(fit.t); fit.t = setTimeout(fit, 80); }).observe(document.getElementById("t"));
+    setTimeout(fit, 50);
+  }
+  // Output from the PTY (base64 of raw bytes).
+  function zw(b64) { if (term) term.write(dec(b64)); }
+  // The session's earlier lines, written first and pushed up into the scrollback before tmux redraws.
+  function zh(b64) { if (!term) return; term.write(dec(b64)); term.write("\r\n".repeat(term.rows)); }
+  function zclear() { if (term) { term.reset(); } }
+  function zfocus() { if (term) term.focus(); }
+  function zfont(n) { if (term) { size = n; term.options.fontSize = n; setTimeout(fit, 30); } }
+  window.addEventListener("load", () => Zeus.ready());
+</script>
+</body>
+</html>

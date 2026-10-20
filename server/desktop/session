@@ -1,0 +1,43 @@
+#!/bin/bash
+# The Lemnos desktop session, run as user desk by zeus-desktop.service: Xvnc (X server + VNC in one process) on a
+# unix socket only, then XFCE on that display. When Xvnc exits (stopped, or MaxDisconnectionTime with nobody
+# watching) this script exits and systemd ends everything else in the unit.
+set -uo pipefail
+umask 077
+DISP=:7
+SOCK=/run/zeus-desktop/vnc.sock
+IDLE=$(( ${ZEUS_DESKTOP_IDLE_MIN:-15} * 60 ))
+export HOME=/home/desk USER=desk LOGNAME=desk SHELL=/bin/bash DISPLAY=$DISP XDG_RUNTIME_DIR=/run/zeus-desktop-xdg
+export XAUTHORITY=$XDG_RUNTIME_DIR/Xauthority LANG=C.UTF-8 XDG_SESSION_TYPE=x11 XDG_CURRENT_DESKTOP=XFCE
+cd "$HOME"
+
+# A fresh cookie every start: X clients need it even inside the unit's private /tmp.
+: > "$XAUTHORITY"
+xauth -q -f "$XAUTHORITY" add "$DISP" . "$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')"
+
+# No TCP (rfbport -1, -nolisten tcp), no abstract X socket (-nolisten local); the RFB socket is 0660 in a desk:zeus
+# 2750 dir, so only the gateway can open it. SecurityTypes None is safe only because of that.
+Xvnc "$DISP" -auth "$XAUTHORITY" -geometry "${ZEUS_DESKTOP_GEOMETRY:-1600x1200}" -depth 24 \
+  -rfbport -1 -rfbunixpath "$SOCK" -rfbunixmode 0660 -SecurityTypes None -nolisten tcp -nolisten local \
+  -AlwaysShared -AcceptSetDesktopSize=1 -MaxDisconnectionTime "$IDLE" -MaxIdleTime 3600 \
+  -FrameRate 30 -CompareFB 2 -desktop Lemnos &
+XVNC=$!
+
+for _ in $(seq 1 50); do [ -S "$SOCK" ] && break; sleep 0.1; done
+[ -S "$SOCK" ] || { echo "Xvnc didn't open $SOCK"; kill $XVNC; exit 1; }
+
+# First run: XFCE's default panel without the "which panel?" question, and no compositor (cheaper frames).
+CONF=$HOME/.config/xfce4/xfconf/xfce-perchannel-xml
+if [ ! -f "$CONF/xfce4-panel.xml" ]; then
+  mkdir -p "$CONF"
+  cp /etc/xdg/xfce4/panel/default.xml "$CONF/xfce4-panel.xml" 2>/dev/null || true
+  cp /usr/local/lib/zeus-desktop/xfwm4.xml "$CONF/xfwm4.xml"
+  cp /usr/local/lib/zeus-desktop/xfce4-desktop.xml "$CONF/xfce4-desktop.xml"
+fi
+
+# The system's x-terminal-emulator is zutty (which can't find its font here): XFCE's own terminal instead.
+[ -f "$HOME/.config/xfce4/helpers.rc" ] || printf 'TerminalEmulator=xfce4-terminal\nFileManager=thunar\n' > "$HOME/.config/xfce4/helpers.rc"
+
+dbus-launch --exit-with-session startxfce4 >/dev/null 2>&1 &
+wait $XVNC
+echo "Xvnc exited ($?)"

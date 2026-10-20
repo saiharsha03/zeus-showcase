@@ -1,0 +1,65 @@
+{
+  "formatVersion": "0.0.12",
+  "routes": [
+    {
+      "summary": {
+        "lengthInMeters": 13140,
+        "travelTimeInSeconds": 1820,
+        "trafficDelayInSeconds": 840,
+        "trafficLengthInMeters": 3120,
+        "departureTime": "2026-10-20T08:05:00-04:00",
+        "arrivalTime": "2026-10-20T08:35:20-04:00",
+        "noTrafficTravelTimeInSeconds": 960,
+        "historicTrafficTravelTimeInSeconds": 1110,
+        "liveTrafficIncidentsTravelTimeInSeconds": 1820
+      },
+      "legs": [
+        {
+          "summary": {
+            "lengthInMeters": 13140,
+            "travelTimeInSeconds": 1820,
+            "trafficDelayInSeconds": 840,
+            "trafficLengthInMeters": 3120,
+            "departureTime": "2026-10-20T08:05:00-04:00",
+            "arrivalTime": "2026-10-20T08:35:20-04:00"
+          }
+        }
+      ],
+      "sections": [
+        { "startPointIndex": 0, "endPointIndex": 254, "sectionType": "TRAVEL_MODE", "travelMode": "car" },
+        {
+          "startPointIndex": 41, "endPointIndex": 96, "sectionType": "TRAFFIC", "simpleCategory": "JAM",
+          "effectiveSpeedInKmh": 18, "delayInSeconds": 780, "magnitudeOfDelay": 3,
+          "tec": { "effectCode": 4, "causes": [ { "mainCauseCode": 2 } ] }
+        },
+        {
+          "startPointIndex": 120, "endPointIndex": 131, "sectionType": "TRAFFIC", "simpleCategory": "ROAD_WORK",
+          "effectiveSpeedInKmh": 41, "delayInSeconds": 60, "magnitudeOfDelay": 1,
+          "tec": { "effectCode": 3, "causes": [ { "mainCauseCode": 3, "subCauseCode": 1 } ] }
+        },
+        {
+          "startPointIndex": 200, "endPointIndex": 204, "sectionType": "TRAFFIC", "simpleCategory": "JAM",
+          "effectiveSpeedInKmh": 52, "delayInSeconds": 20, "magnitudeOfDelay": 0,
+          "tec": { "effectCode": 4, "causes": [ { "mainCauseCode": 1 } ] }
+        }
+      ]
+    },
+    {
+      "summary": {
+        "lengthInMeters": 14980,
+        "travelTimeInSeconds": 1500,
+        "trafficDelayInSeconds": 45,
+        "trafficLengthInMeters": 400,
+        "departureTime": "2026-10-20T08:05:00-04:00",
+        "arrivalTime": "2026-10-20T08:30:00-04:00",
+        "noTrafficTravelTimeInSeconds": 1380,
+        "historicTrafficTravelTimeInSeconds": 1430,
+        "liveTrafficIncidentsTravelTimeInSeconds": 1500
+      },
+      "legs": [],
+      "sections": [
+        { "startPointIndex": 0, "endPointIndex": 301, "sectionType": "TRAVEL_MODE", "travelMode": "car" }
+      ]
+    }
+  ]
+}

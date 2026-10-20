@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Phase 3: what the google-services plugin would generate from app/google-services.json (Firebase project
+     your-gcp-project). Placeholders: replace them with your own Firebase project's values. Used only for FCM wake-ups. -->
+<resources>
+    <string name="google_app_id" translatable="false">YOUR_APP_ID</string>
+    <string name="gcm_defaultSenderId" translatable="false">YOUR_SENDER_ID</string>
+    <string name="google_api_key" translatable="false">YOUR_API_KEY</string>
+    <string name="project_id" translatable="false">your-gcp-project</string>
+</resources>

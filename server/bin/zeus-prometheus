@@ -1,0 +1,64 @@
+#!/usr/bin/env python3
+"""zeus-prometheus: the laptop's end of Prometheus app-change requests (docs/ZEUS-GATEWAY.md, "Prometheus").
+
+Root only. The owner's laptop runs it over SSH from Athena/tools/prometheus.py, by hand. No agent on this box calls it:
+the queue dir is zeus:zeus 0750, and this refuses to run as anyone but root. Root is used for one thing only: reading
+the laptop's upload folder (root 0700). Then it drops to zeus, and every queue read and write runs as zeus.
+
+    zeus-prometheus list                 # every request, newest first (JSON)
+    zeus-prometheus claim p0123456789ab  # queued -> building
+    zeus-prometheus publish p0123456789ab /tmp/prom-p0123456789ab   # build.json [app.apk patch.diff tests.txt]
+    zeus-prometheus fail p0123456789ab "gradle failed"
+"""
+import json
+import os
+import pwd
+import sys
+
+sys.path.insert(0, os.environ.get("ZEUS_LIB", "/opt/zeus/lib"))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "lib"))
+import prometheus_queue as pq  # noqa: E402
+
+ROOT = os.environ.get("ZEUS_PROMETHEUS", "/var/lib/zeus-prometheus")
+
+
+def drop_to_zeus() -> None:
+    z = pwd.getpwnam("zeus")
+    os.setgroups([])
+    os.setgid(z.pw_gid)
+    os.setuid(z.pw_uid)
+    if os.geteuid() == 0 or os.getuid() == 0:
+        raise SystemExit("could not drop root")
+
+
+def main(argv: list[str]) -> int:
+    test = bool(os.environ.get("ZEUS_PROMETHEUS_TEST"))
+    if os.geteuid() != 0 and not test:
+        print(json.dumps({"error": "root only"}), file=sys.stderr)
+        return 2
+    try:
+        upload = pq.read_upload(argv[2]) if len(argv) == 3 and argv[0] == "publish" else None
+        if not test:
+            drop_to_zeus()
+        q = pq.Queue(ROOT)
+        match argv:
+            case ["list"]:
+                out = q.all(200)
+            case ["claim", rid]:
+                out = q.claim(rid)
+            case ["publish", rid, _]:
+                out = q.publish(rid, upload)
+            case ["fail", rid, *why]:
+                out = q.fail(rid, " ".join(why))
+            case _:
+                print(__doc__, file=sys.stderr)
+                return 2
+    except (KeyError, ValueError, OSError) as e:
+        print(json.dumps({"error": str(e)}), file=sys.stderr)
+        return 1
+    print(json.dumps(out, indent=1))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

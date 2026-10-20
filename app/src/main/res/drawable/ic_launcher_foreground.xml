@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Athena, option C "Night owl" (preview/athena-icons.html): paper-white owl with ear tufts, lens eyes with saffron rings
+  and highlights, indigo beak, a saffron moon. Background layer is @color/ic_launcher_background (#1B1730).
+  Scaled to 0.8 around the centre to sit inside the adaptive-icon safe zone. To swap to option A or B, replace the
+  paths inside the group (same 108 viewport) and the background colour.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <group android:pivotX="54" android:pivotY="54" android:scaleX="0.8" android:scaleY="0.8">
+        <!-- Body with ear tufts. -->
+        <path android:fillColor="#F4EFE6"
+            android:pathData="M20,104 C20,64 26,40 34,30 L40,40 C46,36 62,36 68,40 L74,30 C82,40 88,64 88,104 Z" />
+        <!-- Lens eyes: dark discs. -->
+        <path android:fillColor="#14110E" android:pathData="M31,58 a11,11 0 1,0 22,0 a11,11 0 1,0 -22,0 Z" />
+        <path android:fillColor="#14110E" android:pathData="M55,58 a11,11 0 1,0 22,0 a11,11 0 1,0 -22,0 Z" />
+        <!-- Faint saffron rings. -->
+        <path android:strokeColor="#E9C46A" android:strokeAlpha="0.45" android:strokeWidth="1.6"
+            android:pathData="M35.18,58 a6.82,6.82 0 1,0 13.64,0 a6.82,6.82 0 1,0 -13.64,0 Z" />
+        <path android:strokeColor="#E9C46A" android:strokeAlpha="0.45" android:strokeWidth="1.6"
+            android:pathData="M59.18,58 a6.82,6.82 0 1,0 13.64,0 a6.82,6.82 0 1,0 -13.64,0 Z" />
+        <!-- Highlights. -->
+        <path android:fillColor="#E9C46A" android:pathData="M42.22,54.7 a3.08,3.08 0 1,0 6.16,0 a3.08,3.08 0 1,0 -6.16,0 Z" />
+        <path android:fillColor="#E9C46A" android:pathData="M66.22,54.7 a3.08,3.08 0 1,0 6.16,0 a3.08,3.08 0 1,0 -6.16,0 Z" />
+        <!-- Beak. -->
+        <path android:fillColor="#1B1730" android:pathData="M51,70 L54,76 L57,70 Z" />
+        <!-- Moon, pulled in a little so it stays inside the safe zone. -->
+        <path android:fillColor="#E9C46A" android:pathData="M75,26 a5,5 0 1,0 10,0 a5,5 0 1,0 -10,0 Z" />
+    </group>
+</vector>
