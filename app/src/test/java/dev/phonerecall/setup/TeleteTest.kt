@@ -14,7 +14,7 @@ object TeleteFixtures {
     const val NOW = 1_792_000_000_000L
 
     val ready = Facts(
-        granted = setOf(Perm.FINE, Perm.BACKGROUND, Perm.ACTIVITY, Perm.CALL_LOG, Perm.CONTACTS, Perm.CALENDAR, Perm.MIC, Perm.NOTIFY),
+        granted = setOf(Perm.FINE, Perm.BACKGROUND, Perm.ACTIVITY, Perm.CALL_LOG, Perm.CALL, Perm.CONTACTS, Perm.CALENDAR, Perm.MIC, Perm.NOTIFY, Perm.NEARBY),
         listener = true, usage = true, health = HcFact.READY, exactAlarms = true, dnd = true, installs = true, battery = true,
         keys = setOf("anthropic", "gemini", "hetzner", "tomtom", "ny511"),
         paired = true, spotify = true, home = HomeFact.CONNECTED, googleBirthdays = true,

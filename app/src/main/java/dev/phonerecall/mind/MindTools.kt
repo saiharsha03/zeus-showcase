@@ -34,6 +34,22 @@ interface MindExtras {
     fun factRows(): List<Map<String, Any?>> = emptyList()
     /** propose_fact_changes: the dream's changes, validated and applied by Oneiroi's rules. One line back. */
     fun proposeFactChanges(input: Map<String, Any?>): String = "Memory care isn't set up on this phone."
+    /** ask_prometheus (kind assess): a read-only look at Zeus's code; the result arrives later as a note (prometheus/Assess.kt). */
+    fun askPrometheus(input: Map<String, Any?>): String = "Prometheus isn't set up on this phone."
+    /** search_chats: his past conversations with her (and task results), from the sealed transcript. JSON. */
+    fun searchChats(query: String, days: Int): String = "{\"results\":[]}"
+    /** read_habits: the evidence for learned shortcuts and ideas (shortcuts/). JSON. */
+    fun habits(): String = "{\"pairs\":[]}"
+    /** propose_shortcuts and propose_ideas: her offers, checked by the hard rules, each as ONE grouped card. One line back. */
+    fun offerShortcuts(input: Map<String, Any?>): String = "Learned shortcuts aren't set up on this phone."
+    fun offerIdeas(input: Map<String, Any?>): String = "Ideas aren't set up on this phone."
+    /** read_zeus: each area's reader on the phone (ZeusAreas.phone). Raw values; ZeusRead filters and caps them. */
+    fun zeusReaders(): Map<String, (ZeusRead.Ask) -> Any?> = emptyMap()
+    /** Calypso's names and labels: a record naming one never leaves through read_zeus. */
+    fun zeusSealed(): Set<String> = emptySet()
+    /** read_routines and propose_routine: his home routines, and her draft of one as ONE card (hestia/RoutineSpec.kt). */
+    fun homeRoutines(): String = "{\"routines\":[]}"
+    fun proposeRoutine(input: Map<String, Any?>): String = "Home routines aren't set up on this phone."
 }
 
 /**
@@ -64,15 +80,35 @@ class MindTools(
 ) {
     private val json = jsonMapper()
 
+    /** spawn_task's handler, set by the Mind that answers these tools (Tasks.kt). */
+    var spawner: ((Map<String, Any?>) -> String)? = null
+
     fun run(name: String, input: Map<String, Any?>, thread: String?, asCircle: Boolean): ToolOutcome {
-        if (name !in READS && name !in WRITES && name != REPORT && name !in VAULT && name !in INVESTIGATE && name != AGORA && name !in SCHEDULE && name != REPORT_CHECK && name != TRIPS && name !in FACTS) return ToolOutcome("Unknown tool $name. Zeus answers only its own tools.", isError = true)
+        if (name in HABITS) return when {
+            asCircle -> ToolOutcome("Only Athena offers shortcuts and ideas. Report what you noticed and she will decide.", isError = true)
+            name !in HABIT_READS && probe() != null -> ToolOutcome("Shakedown in progress: writes are off for this test run. Report the check and move on.", isError = true)
+            else -> runCatching {
+                ToolOutcome(when (name) {
+                    READ_HABITS -> extras.habits(); "propose_shortcuts" -> extras.offerShortcuts(input)
+                    dev.phonerecall.hestia.RoutineSpec.READ -> extras.homeRoutines(); dev.phonerecall.hestia.RoutineSpec.TOOL -> extras.proposeRoutine(input)
+                    else -> extras.offerIdeas(input)
+                })
+            }
+                .getOrElse { ToolOutcome("Tool $name failed: ${it.message ?: it.javaClass.simpleName}", isError = true) }
+        }
+        if (name == SPAWN) return when {
+            asCircle -> ToolOutcome("Only Athena spawns tasks. Report what should be done and she will decide.", isError = true)
+            probe() != null -> ToolOutcome("Shakedown in progress: writes are off for this test run. Report the check and move on.", isError = true)
+            else -> spawner?.let { ToolOutcome(runCatching { it(input) }.getOrElse { e -> "Not started: ${e.message ?: e.javaClass.simpleName}" }) } ?: ToolOutcome("Tasks aren't set up on this phone.", isError = true)
+        }
+        if (name !in READS && name !in WRITES && name != REPORT && name !in VAULT && name !in INVESTIGATE && name != AGORA && name !in SCHEDULE && name != REPORT_CHECK && name != TRIPS && name !in FACTS && name != PROMETHEUS) return ToolOutcome("Unknown tool $name. Zeus answers only its own tools.", isError = true)
         val test = probe()
         if (name == REPORT_CHECK) return when {
             asCircle -> ToolOutcome("Only Athena reports shakedown checks.", isError = true)
             test == null -> ToolOutcome("No shakedown is running. report_check is only for Zeus's own test run.", isError = true)
             else -> ToolOutcome(test.report(input))
         }
-        if (test != null && (name in WRITES || name in VAULT || name == REPORT || name == "record_trip_finding" || name == ProposalKind.SET_SCHEDULE.wire || name == TRIPS || name == "propose_fact_changes" || (name == AGORA && input["room"]?.toString() == "group"))) {
+        if (test != null && (name in WRITES || name in VAULT || name == REPORT || name == "record_trip_finding" || name == ProposalKind.SET_SCHEDULE.wire || name == TRIPS || name == "propose_fact_changes" || name == PROMETHEUS || (name == AGORA && input["room"]?.toString() == "group"))) {
             return ToolOutcome("Shakedown in progress: writes are off for this test run. Report the check and move on.", isError = true)
         }
         return answer(name, input, thread, asCircle).also { o -> if (test != null && !asCircle) runCatching { test.seen(name, input, o.isError, o.text) } }
@@ -86,12 +122,21 @@ class MindTools(
         }
         if (asCircle && name in SCHEDULE) return ToolOutcome("Only Athena handles her schedules. Report what should change and she will decide.", isError = true)
         if (asCircle && name == TRIPS) return ToolOutcome("Only Athena proposes trips. Report what the trips should be and she will decide.", isError = true)
+        if (asCircle && name == PROMETHEUS) return ToolOutcome("Only Athena asks Prometheus. Report what should be assessed and she will decide.", isError = true)
         if (asCircle && name == AGORA) return ToolOutcome("Only Athena posts in Agora. Report what should be said and she will decide.", isError = true)
         if (asCircle && (name in WRITES || name in FACTS)) return ToolOutcome("Only Athena proposes. Report what should happen and she will decide.", isError = true)
+        // Raw values by the owner's choice (2026-10-20), so not the Sanitizer: ZeusRead drops Calypso and off-limits topics and defuses the text.
+        if (name == ZeusRead.NAME) {
+            val sealed = runCatching { extras.zeusSealed() }.getOrElse { return ToolOutcome("read_zeus is unavailable: Calypso's sealed list couldn't be read, so nothing is shared.", isError = true) }
+            return ZeusRead.answer(input, extras.zeusReaders(), sealed, java.time.ZonedDateTime.now())
+        }
         return try {
             when (name) {
                 "read_calendar" -> box.run(name, input, null).let { o -> if (o.isError) o else o.copy(text = stripPlaces(o.text)) }
                 "now", "read_tasks", "read_availability", "read_trips" -> box.run(name, input, null)
+                in PHONE_READS -> box.run(name, input, null)
+                // His own words, as the chat sent them (MindHost filters them with Sanitizer.chat): not through clean().json below.
+                SEARCH_CHATS -> return ToolOutcome(extras.searchChats(input["query"]?.toString().orEmpty(), input["days"]?.toString()?.toDoubleOrNull()?.toInt() ?: 30))
                 "read_cards" -> data(mapOf("cards" to extras.cards()))
                 "read_people_labels" -> data(mapOf("people" to extras.peopleLabels()))
                 "read_sections" -> data(mapOf("sections" to extras.sections()))
@@ -105,6 +150,7 @@ class MindTools(
                 "propose_fact_changes" -> ToolOutcome(extras.proposeFactChanges(input))
                 "read_schedules" -> ToolOutcome(extras.schedules())
                 ProposalKind.SET_SCHEDULE.wire -> box.proposeStep(ProposalKind.SET_SCHEDULE, input)
+                PROMETHEUS -> dev.phonerecall.prometheus.Assess.refuse(input)?.let { ToolOutcome("Not asked: $it", isError = true) } ?: ToolOutcome(extras.askPrometheus(input))
                 AGORA -> ToolOutcome(extras.postAgora(input["text"]?.toString().orEmpty(), if (input["room"]?.toString() == "group") "group" else "agora"))
                 // Writes: proposals only, through Fates (validated now, revalidated at confirm).
                 else -> box.run(name, input, null)
@@ -130,17 +176,95 @@ class MindTools(
             @Suppress("UNCHECKED_CAST")
             t.name() to ToolSpec(t.name(), t.description().orElse(""), (m["input_schema"] as? Map<String, Any?>).orEmpty())
         }
-        val reads = listOfNotNull(defs["now"], defs["read_calendar"], defs["read_tasks"], defs["read_availability"], defs["read_trips"], defs["read_usage"]) + EXTRA_READS + VAULT.mapNotNull { defs[it] }
-        return if (circle) reads + INVESTIGATE_SPECS + REPORT_SPEC else reads + INVESTIGATE_SPECS + WRITES.mapNotNull { defs[it] } + REPORT_SPEC + AGORA_SPEC + SCHEDULE_SPECS + REPORT_CHECK_SPEC + TRIPS_SPEC + FACT_SPECS
+        val reads = listOfNotNull(defs["now"], defs["read_calendar"], defs["read_tasks"], defs["read_availability"], defs["read_trips"], defs["read_usage"]) + EXTRA_READS + VAULT.mapNotNull { defs[it] } +
+            PHONE_READS.mapNotNull { defs[it] } + SEARCH_CHATS_SPEC
+        return if (circle) reads + INVESTIGATE_SPECS + REPORT_SPEC else reads + INVESTIGATE_SPECS + WRITES.mapNotNull { defs[it] } + REPORT_SPEC + AGORA_SPEC + SCHEDULE_SPECS + REPORT_CHECK_SPEC + TRIPS_SPEC + FACT_SPECS +
+            SPAWN_SPEC + HABIT_SPECS + dev.phonerecall.prometheus.Assess.SPEC + dev.phonerecall.hestia.RoutineTool.SPECS
     }
 
     companion object {
         const val REPORT = "report_job"
         const val AGORA = "post_agora"
+        /** Athena only, and never during a shakedown (it starts a paid session). */
+        const val PROMETHEUS = dev.phonerecall.prometheus.Assess.TOOL
         const val REPORT_CHECK = "report_check"
         const val TRIPS = "propose_trips"
         val SCHEDULE = setOf("read_schedules", "propose_schedule")
-        val READS = setOf("now", "read_calendar", "read_tasks", "read_availability", "read_trips", "read_cards", "read_people_labels", "read_sections", "search_memory", "read_usage")
+        val READS = setOf("now", "read_calendar", "read_tasks", "read_availability", "read_trips", "read_cards", "read_people_labels", "read_sections", "search_memory", "read_usage") + PHONE_READS + SEARCH_CHATS + ZeusRead.NAME
+
+        /** His past conversations with her, kept forever on the phone (sealed). */
+        const val SEARCH_CHATS = "search_chats"
+
+        val SEARCH_CHATS_SPEC = ToolSpec(
+            SEARCH_CHATS,
+            "Search his past conversations with you, across every day and session, including task results: what he said and what you answered, with when. Use it for \"what did we say about X\" or before asking him something he may have told you.",
+            mapOf(
+                "type" to "object",
+                "properties" to mapOf(
+                    "query" to mapOf("type" to "string", "description" to "Words to look for"),
+                    "days" to mapOf("type" to "integer", "description" to "How far back, 1 to 365. Default 30."),
+                ),
+                "required" to listOf("query"), "additionalProperties" to false,
+            ),
+        )
+
+        /** The chat's reads from the phone's ToolBox, since the chat is now her (closet, music, alarms). */
+        val PHONE_READS: Set<String> get() = setOf("read_closet", "read_music", "read_alarms")
+
+        /** Learned shortcuts and ideas (shortcuts/). Athena only. */
+        const val READ_HABITS = "read_habits"
+        val HABITS = setOf(READ_HABITS, "propose_shortcuts", "propose_ideas", dev.phonerecall.hestia.RoutineSpec.READ, dev.phonerecall.hestia.RoutineSpec.TOOL)
+        val HABIT_READS = setOf(READ_HABITS, dev.phonerecall.hestia.RoutineSpec.READ)
+
+        val HABIT_SPECS = listOf(
+            ToolSpec(READ_HABITS, "What he does right after something happens (arrivals, kickoffs) with counts, days, hours, weekdays and when last seen; his learned shortcuts; what he said Never, Not now or No to; the killed list; the actions a shortcut may take.", obj()),
+            ToolSpec(
+                "propose_shortcuts",
+                "Offer learned shortcuts from read_habits pairs you judge worth it (how often, how consistent, how recent, how much it saves), each with a one-line why. All of them go in ONE card he answers row by row (Yes, Not now, Never). Never offer one he said Never to; a shortcut never sends a message or pays.",
+                obj(mapOf("items" to mapOf("type" to "array", "items" to obj(mapOf("trigger" to str("The pair's trigger"), "action" to str("The pair's action"), "why" to str("One line for the owner: why it is worth it")), listOf("trigger", "action", "why")))), listOf("items")),
+            ),
+            ToolSpec(
+                "propose_ideas",
+                "Offer new quality-of-life ideas from his actual week, in ONE card he answers Yes or No per idea. Nothing on the killed or declined lists, nothing Zeus already does. A rule (trigger and an allowed action) becomes a learned shortcut on Yes; anything else needs a problem and an acceptance line and becomes a Prometheus request he sends himself.",
+                obj(
+                    mapOf(
+                        "ideas" to mapOf(
+                            "type" to "array",
+                            "items" to obj(
+                                mapOf(
+                                    "title" to str("Short, what it is"), "why" to str("One line: what in his week suggests it"),
+                                    "trigger" to str("For a rule: like arrive:home or match:bar"), "trigger_label" to str("For a rule: when, in words"),
+                                    "action" to str("For a rule: open:<package>, music:<uri>, alarm:<h>:<m> or home:<device>:<action>"), "action_label" to str("For a rule: what, in words"),
+                                    "problem" to str("For a code change: what is wrong or missing"), "acceptance" to str("For a code change: done when ..."),
+                                ),
+                                listOf("title", "why"),
+                            ),
+                        ),
+                    ),
+                    listOf("ideas"),
+                ),
+            ),
+        )
+
+        /** One of Athena's long jobs in its own session (Tasks.kt). Athena only. */
+        const val SPAWN = "spawn_task"
+
+        val SPAWN_SPEC = ToolSpec(
+            SPAWN,
+            "Hand long work to one of your circle in its own session, so you stay free for the owner: anything needing more than a few tool calls, web research, long reads, " +
+                "watching something, multi-step plans, long drafts. Returns at once with a task id; the result comes back to his chat and to you as a note when it is done. " +
+                "At most ${Tasks.MAX_RUNNING} run at once. Each may spend ${Tasks.DEFAULT_CENTS} cents; asking for more puts a card in front of him and it starts with ${Tasks.DEFAULT_CENTS}.",
+            obj(
+                mapOf(
+                    "title" to str("A short title he will see, like Winter tire options"),
+                    "instructions" to str("Everything the worker needs: the goal, what to read, what the result should look like. It sees none of this conversation."),
+                    "who" to mapOf("type" to "string", "enum" to Protege.entries.map { it.display }, "description" to "Who works on it: Perseus for the web, Arachne for drafts, Atalanta to watch, Diomedes for a quick lookup, Annabeth only for hard reasoning. Default Odysseus."),
+                    "tools" to mapOf("type" to "array", "items" to mapOf("type" to "string"), "description" to "Optional: only these phone tools (read_calendar, search_memory...). Default: every read tool."),
+                    "budget_cents" to int("Optional: what it may spend, in cents. Default ${Tasks.DEFAULT_CENTS}."),
+                ),
+                listOf("title", "instructions"),
+            ),
+        )
         val WRITES: List<String> get() = ToolBox.WRITE_TOOLS.map { it.name() }
         val VAULT = dev.phonerecall.vault.VaultTools.NAMES
 
@@ -150,7 +274,12 @@ class MindTools(
         private fun int(d: String) = mapOf("type" to "integer", "description" to d)
 
         val EXTRA_READS = listOf(
-            ToolSpec("read_cards", "The cards on Olympus, his home screen, right now: title and one line each.", obj()),
+            ToolSpec(
+                "read_cards",
+                "The cards on Olympus, his home screen, right now: title and one line each. A card from a notification may list its buttons " +
+                    "(\"actions\", the app's labels such as Call back or Reply) and a \"ref\"; give your own card \"actions_of\": that ref to put those buttons on it.",
+                obj(),
+            ),
             ToolSpec("read_people_labels", "The people he hears from, as labels and reply tiers only (\"family (mother)\", \"manager\": reply now). Never names or numbers.", obj()),
             ToolSpec("read_sections", "His lists (sections such as Groceries) and the open items on each.", obj()),
             ToolSpec(
@@ -158,6 +287,7 @@ class MindTools(
                 "Search Alexandria, his on-phone memory: Parnassus items, notes, tasks, calendar, closet, notification summaries and documents he added. Returns cited snippets. Sealed (Calypso) items are never searchable.",
                 obj(mapOf("query" to str("What to look for, in plain words"), "k" to int("How many snippets, 1 to 12. Default 6.")), listOf("query")),
             ),
+            ZeusRead.spec(),
         )
 
         val INVESTIGATE = setOf("ask_worker", "record_trip_finding")

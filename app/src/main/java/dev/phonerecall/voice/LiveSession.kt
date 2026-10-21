@@ -13,6 +13,7 @@ import android.media.MediaRecorder
 import android.media.audiofx.AcousticEchoCanceler
 import android.util.Log
 import dev.phonerecall.brain.NetGate
+import dev.phonerecall.brain.TlsGuard
 import dev.phonerecall.brain.SealedSecret
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -87,7 +88,7 @@ class LiveSession(
         startedAt = System.currentTimeMillis()
         set { it.copy(phase = LivePhase.CONNECTING, leftSeconds = left) }
         NetGate.liveOpen = true
-        val client = OkHttpClient.Builder().addInterceptor(NetGate.okHttp).pingInterval(20, TimeUnit.SECONDS).readTimeout(0, TimeUnit.MILLISECONDS).build()
+        val client = OkHttpClient.Builder().sslSocketFactory(TlsGuard.sslSocketFactory, TlsGuard.trustManager).addInterceptor(NetGate.okHttp).pingInterval(20, TimeUnit.SECONDS).readTimeout(0, TimeUnit.MILLISECONDS).build()
         // The key goes in this one header, to this one host. It is never in a frame, a log line or a model's context.
         socket = client.newWebSocket(LiveApi.handshake(key), listener)
         ticker.scheduleAtFixedRate({ tick() }, 1, 1, TimeUnit.SECONDS)

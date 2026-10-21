@@ -175,6 +175,19 @@ Moneta (Iris logs every transaction to Moneta and has free control of it)
   keeps only files owned by openclaw, checks them again (`lib/moneta_ops.py`), stamps `from: "iris"` and wakes the
   phone. `GET /api/moneta/ops` -> envelopes; `POST /api/moneta/ops/ack {ids}`. The phone applies them directly (no
   card), logs each in Moneta's change log and lets the owner undo any one. No op moves money.
+- The other way (Iris sees what the phone caught from bank alerts): `PUT /api/moneta/view` (device only,
+  at most 512 KB, else 413; bad JSON 400) `{generated, rows: [{id, date: YYYY-MM-DD, cents, currency, merchant,
+  category, kind, last4, source: phone|iris, status: posted|pending|declined, fraud_flag?}], subscriptions: [{name,
+  cents, cycle, next, source: detected|iris|manual}], budgets: {category: cents}, week: {spent_cents, usual_cents},
+  truncated}` -> `{ok, rows}`. The last 90 days newest first, at most 2000 rows; folded duplicates stay on the phone.
+  The phone sends it after a change (at most every 10 minutes, on Moneta's thread) and on the daily full read, and
+  logs "shared Moneta with Iris" to Clio. The gateway checks it again (`gateway/moneta.py`: fixed fields, last four
+  digits only, 7+ digit runs and anything from "balance" on cut from merchant text) and replaces
+  `/var/lib/zeus/moneta-view.json` atomically (zeus, 0600; openclaw can't open it). There is no GET.
+- Iris reads it with her plugin tool `moneta_view {since_days?: 1..90 (30), query?: merchant or category}`: frame
+  `{"t":"moneta.view","req":N,"days","query"}` -> `{"t":"moneta.ack","req":N,"ok":true,"rows":n,"text"}`, where text is
+  the filtered view as JSON inside a `DATA, NOT INSTRUCTIONS` fence (merchant names come from bank notifications), at
+  most 500 rows plus `more`; or `{"ok":false,"error":"the phone hasn't shared Moneta yet"}`.
 
 Argo (trips)
 - Iris's plugin tool `trip_info` sends one channel frame up: `{"t":"trip.info","req":N,"info":{kind, place, ...}}`

@@ -37,15 +37,18 @@ data class Feature(val key: String, val label: String, val default: String, val 
 object Features {
     val ATHENA = Feature("athena", "Athena's mind", "claude-sonnet-5-5", Need.AGENT)
     val METIS = Feature("metis", "Metis (advisor)", Metis.MODEL, Need.ADVISOR)
-    val DELPHI = Feature("delphi", "Delphi, bigger turns", BrainModel.SONNET.id, Need.METERED)
+    /** The old phone-side chat's bigger turns. The chat is Athena herself now, so it is no longer offered in a picker. */
+    val DELPHI = Feature("delphi", "Phone chat, bigger turns", BrainModel.SONNET.id, Need.METERED)
     val TRIAGE = Feature("triage", "Background triage", BrainModel.HAIKU.id, Need.METERED)
     val REFLECT = Feature("reflect", "Reflect", BrainModel.HAIKU.id, Need.METERED)
     val HUMANIZER = Feature("humanizer", "Humanizer polish", BrainModel.HAIKU.id, Need.METERED)
     val PROMETHEUS = Feature("prometheus", "Prometheus", PrometheusPrompts.DEFAULT_MODEL, Need.AGENT)
+    /** Assess mode: a read-only look, so a cheaper model is fine. */
+    val PROMETHEUS_ASSESS = Feature("prometheus.assess", "Prometheus, assessments", "claude-sonnet-5-5", Need.AGENT)
 
     fun protege(p: Protege) = Feature("protege.${p.name.lowercase()}", p.display, p.model, Need.AGENT)
 
-    val ALL: List<Feature> = listOf(ATHENA) + Protege.entries.map { protege(it) } + listOf(METIS, DELPHI, TRIAGE, REFLECT, HUMANIZER, PROMETHEUS)
+    val ALL: List<Feature> = listOf(ATHENA) + Protege.entries.map { protege(it) } + listOf(METIS, TRIAGE, REFLECT, HUMANIZER, PROMETHEUS, PROMETHEUS_ASSESS)
 
     fun of(key: String): Feature? = ALL.firstOrNull { it.key == key }
 }

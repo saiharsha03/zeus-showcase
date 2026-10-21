@@ -65,6 +65,16 @@ class RenderShots {
     @Test @Config(sdk = [35], qualifiers = "w384dp-h2300dp-xhdpi")
     fun notificationCards() { compose.setContent { SensesPreviews.NotificationCards() }; save("notification-cards") }
 
+    @Test @Config(sdk = [35], qualifiers = "w384dp-h1500dp-xhdpi")
+    fun agencyCards() { compose.setContent { SensesPreviews.AgencyCards() }; save("agency-cards") }
+
+    // Fold sizes: the cover screen and the inner screen.
+    @Test @Config(sdk = [35], qualifiers = "w452dp-h3000dp-xhdpi")
+    fun agencyCardsCover() { compose.setContent { SensesPreviews.AgencyCards2(1, Space.gutterNarrow) }; save("agency-cards-cover") }
+
+    @Test @Config(sdk = [35], qualifiers = "w1128dp-h2000dp-xhdpi")
+    fun agencyCardsInner() { compose.setContent { SensesPreviews.AgencyCards2(2, Space.gutterWide) }; save("agency-cards-inner") }
+
     // ---- phase 2c ----
 
     @Test @Config(sdk = [35], qualifiers = "w384dp-h1500dp-xhdpi")

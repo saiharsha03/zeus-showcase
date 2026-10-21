@@ -99,6 +99,12 @@
 
   /* dialogs */
   .settings-sheet{background:var(--bg2)!important;color:var(--ink)!important;border-radius:20px!important}
+  /* keep every sheet inside the visible area: below the status bar, above the nav bar, scrollable, closable */
+  .settings-sheet{position:fixed!important;inset:0!important;margin:auto!important;box-sizing:border-box;width:min(520px,calc(100vw - var(--inset-left,0px) - var(--inset-right,0px) - 32px))!important;max-width:none!important;height:fit-content;
+    max-height:calc(100dvh - var(--inset-top) - var(--inset-bottom) - 32px)!important;overflow-y:auto!important;overscroll-behavior:contain;z-index:100;padding:22px 22px calc(22px + env(safe-area-inset-bottom,0px))!important}
+  .settings-sheet *{box-sizing:border-box;max-width:100%}.settings-sheet select{width:100%!important}
+  .settings-sheet:not([open]){display:none!important}
+  .settings-sheet>.close{position:sticky;top:0;float:right;z-index:1;min-width:44px;min-height:44px;font-size:22px;background:var(--bg3);color:var(--ink);border-radius:12px}
   .settings-sheet::backdrop{background:rgba(0,0,0,.55)!important}
   .settings-sheet p{color:var(--ink3)!important}
   .settings-sheet select{background:var(--bg3)!important;color:var(--ink)!important;border-radius:10px!important}

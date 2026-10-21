@@ -50,6 +50,20 @@ class SwipeDoneTest {
         assertTrue(board(expired).any { it.id == first.id })
     }
 
+    private fun generatedBoard(p: HomePrefs, g: GeneratedCard) = CardEngine.build(
+        BoardInputs(F.now, CalendarSnapshot(true, emptyList(), true), F.availability, false, p, Learned(), F.tasks, ClosetSnapshot(loaded = true), listOf(g), false),
+    ).cards
+
+    @Test fun gotItOnAMustSeeCardMarksThatOneDone() {
+        // Bank, security and due-today cards can't be hidden as a kind, but "Got it" or a swipe still finishes this one.
+        val due = GeneratedCard("Pay rent", "Due today", listOf("Got it"), F.ms + 3_600_000L, CardSource.ATHENA, id = "athena-7", dueToday = true)
+        val shown = generatedBoard(HomePrefs(), due).single { it.content.title == "Pay rent" }
+        assertTrue(shown.neverHide)
+        assertTrue(generatedBoard(HomePrefs(hidden = setOf(shown.id)), due).any { it.id == shown.id })
+        val done = HomePrefs(dismissed = mapOf(shown.instanceKey to shown.relevantUntil!!))
+        assertTrue(generatedBoard(done, due).none { it.id == shown.id })
+    }
+
     @Test fun kindStaysOnHomeAfterSwipe() {
         val first = birthdays(HomePrefs()).first()
         val p = HomePrefs(dismissed = mapOf(first.instanceKey to first.relevantUntil!!))

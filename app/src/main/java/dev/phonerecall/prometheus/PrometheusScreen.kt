@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import dev.phonerecall.clio.ClioLine
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -86,7 +87,8 @@ class PrometheusCalls(
     val check: (String) -> Unit = {},
     val install: (String) -> Unit = {},
     val cloudMode: (Boolean) -> Unit = {},
-    val cloudStart: (String, Boolean) -> Unit = { _, _ -> },
+    /** The request, whether to attach Clio's warnings, and the crash or freeze entry sent from Clio (or null). */
+    val cloudStart: (String, Boolean, ClioLine?) -> Unit = { _, _, _ -> },
     val cloudRefresh: () -> Unit = {},
     /** Only after his fingerprint (the screen asks). */
     val cloudMerge: (String) -> Unit = {},
@@ -263,11 +265,11 @@ private fun AppliedRow(t: Tweak, calls: PrometheusCalls) {
 private fun NotesPanel(s: PrometheusState, calls: PrometheusCalls) {
     val c = Athena.colors
     Kicker("Notes for Athena", Modifier.padding(top = Space.xl, bottom = Space.s))
-    if (s.notes.isEmpty()) Line("No standing notes. Approved notes join Delphi's instructions.", Type.small, c.ink3)
+    if (s.notes.isEmpty()) Line("No standing notes. Approved notes join Athena's instructions.", Type.small, c.ink3)
     s.notes.forEach { Row(Modifier.fillMaxWidth().topRule(c.rule).padding(vertical = Space.s)) { Line(it, Type.small, c.ink) } }
     val q = s.quote
     if (q == null) {
-        Line("Asks ${dev.phonerecall.brain.BrainModel.SONNET.label} to suggest edits from your thumbs and corrections in Delphi. You see the cost first.", Type.small, c.ink3, Modifier.padding(top = Space.m).widthIn(max = 560.dp))
+        Line("Asks ${dev.phonerecall.brain.BrainModel.SONNET.label} to suggest edits from your thumbs and corrections in the chat. You see the cost first.", Type.small, c.ink3, Modifier.padding(top = Space.m).widthIn(max = 560.dp))
         TextAction("Check the cost", calls.quote)
     } else {
         Block {
@@ -292,14 +294,22 @@ private fun AppChanges(s: PrometheusState, calls: PrometheusCalls) {
         TextAction("Cloud", { calls.cloudMode(true) }, emphasis = s.cloudMode)
         TextAction("Laptop", { calls.cloudMode(false) }, emphasis = !s.cloudMode)
     }
+    // An entry sent from Clio needs the cloud panel; the laptop path has no stack attachment.
+    val sent by PrometheusDraft.stack.collectAsStateWithLifecycle()
+    LaunchedEffect(sent) { if (sent != null && !s.cloudMode) calls.cloudMode(true) }
     if (s.cloudMode) CloudPanel(s, calls) else ChangesPanel(s, calls)
 }
 
 @Composable
 private fun CloudPanel(s: PrometheusState, calls: PrometheusCalls) {
     val c = Athena.colors
-    var problem by rememberSaveable { mutableStateOf("") }
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    // An idea he said Yes to that needs code arrives here drafted by Athena; he reads it and taps Send.
+    var problem by rememberSaveable { mutableStateOf(PrometheusDraft.peek(ctx).orEmpty()) }
     var clio by rememberSaveable { mutableStateOf(false) }
+    var stack by remember { mutableStateOf<ClioLine?>(null) }
+    val sent by PrometheusDraft.stack.collectAsStateWithLifecycle()
+    LaunchedEffect(sent) { PrometheusDraft.take()?.let { stack = it; problem = ClioEvidence.prefill(it) } }
     Row(Modifier.padding(bottom = Space.xs), verticalAlignment = Alignment.CenterVertically) {
         Line("Prometheus in the cloud", Type.body, c.ink, Modifier.weight(1f))
         TextAction("Refresh", calls.cloudRefresh)
@@ -315,7 +325,14 @@ private fun CloudPanel(s: PrometheusState, calls: PrometheusCalls) {
         TextAction(if (clio) "Clio warnings attached" else "Attach Clio warnings", { clio = !clio }, emphasis = clio)
         Line("Last 2 hours, cleaned of names and private details", Type.caption, c.ink3, Modifier.weight(1f))
     }
-    TextAction("Send to Prometheus", { if (problem.isNotBlank()) { calls.cloudStart(problem.trim(), clio); problem = ""; clio = false } }, emphasis = true, enabled = problem.isNotBlank() && s.tokens && s.working == null)
+    stack?.let { l ->
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Line("Stack from Clio attached: ${l.event}", Type.small, c.ink2, Modifier.weight(1f), maxLines = 1)
+            TextAction("Remove", { stack = null })
+        }
+    }
+    Line("Crash and freeze stacks from the last 48 hours always go with a request, as code frames only.", Type.caption, c.ink3)
+    TextAction("Send to Prometheus", { if (problem.isNotBlank()) { calls.cloudStart(problem.trim(), clio, stack); problem = ""; clio = false; stack = null; PrometheusDraft.clear(ctx) } }, emphasis = true, enabled = problem.isNotBlank() && s.tokens && s.working == null)
     Line("Up to $${Forge.BUDGET_CENTS / 100} a request, from this month's cap.", Type.caption, c.ink3)
     s.cloud.forEach { CloudCard(it, it.id in s.verified, calls) }
 }
@@ -364,14 +381,15 @@ private fun CloudCard(r: CloudChange, verified: Boolean, calls: PrometheusCalls)
 @Composable
 private fun ChangesPanel(s: PrometheusState, calls: PrometheusCalls) {
     val c = Athena.colors
-    var problem by rememberSaveable { mutableStateOf("") }
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    var problem by rememberSaveable { mutableStateOf(PrometheusDraft.peek(ctx).orEmpty()) }
     Row(Modifier.padding(bottom = Space.xs), verticalAlignment = Alignment.CenterVertically) {
         Line("On the laptop", Type.body, c.ink, Modifier.weight(1f))
         TextAction("Refresh", calls.refresh)
     }
     Line("Describe a problem. Your fingerprint signs it, Lemnos queues it, and the laptop builds and tests it when you run Prometheus there. Installs only through Android's own dialog.", Type.small, c.ink3, Modifier.widthIn(max = 560.dp))
     UnderlineField(problem, { problem = it.take(1000) }, "What should change?", Modifier.fillMaxWidth())
-    TextAction("Propose an app change", { if (problem.isNotBlank()) { calls.propose(problem.trim()); problem = "" } }, emphasis = true, enabled = problem.isNotBlank())
+    TextAction("Propose an app change", { if (problem.isNotBlank()) { calls.propose(problem.trim()); problem = ""; PrometheusDraft.clear(ctx) } }, emphasis = true, enabled = problem.isNotBlank())
     s.changes.forEach { ChangeCard(it, it.id in s.verified, calls) }
 }
 
@@ -435,3 +453,4 @@ fun GitHubKeyRows() {
         "github-release", 40,
     )
 }
+

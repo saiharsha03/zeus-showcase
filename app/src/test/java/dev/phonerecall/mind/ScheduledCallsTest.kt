@@ -12,12 +12,12 @@ class ScheduledCallsTest {
     private val mind = Mind(r.api, r.kv, r.tools, r.sink, r.context, r.ledger, clock = { r.now }, driveMs = 10_000L, trace = { e, d -> traces += "$e: $d" })
 
     /** A daily-plan run whose session is idle on these tool calls. */
-    private fun waitingRun(calls: List<Pair<String, Long>>): String {
+    private fun waitingRun(calls: List<Pair<String, Long>>, input: Map<String, Any?> = emptyMap()): String {
         mind.ensure()
         val d = mind.ids.deployment("Zeus · daily-plan")!!
         val sid = "sesn_run"
         r.api.sessions[sid] = SessionInfo(sid, "idle")
-        r.api.events[sid] = calls.mapIndexed { i, (tool, at) -> MindEvent.CustomToolUse("sevt_c$i", at, tool, emptyMap()) }.toMutableList<MindEvent>()
+        r.api.events[sid] = calls.mapIndexed { i, (tool, at) -> MindEvent.CustomToolUse("sevt_c$i", at, tool, input) }.toMutableList<MindEvent>()
             .also { it += MindEvent.Idle("sevt_idle", r.now - 60_000, "requires_action") }
         r.api.runList += RunInfo("run_1", d, sid, r.now - 3_600_000L, null)
         return sid
@@ -35,6 +35,15 @@ class ScheduledCallsTest {
         assertEquals(25, r.api.toolResults)
         assertTrue("run.sesn_run" in r.kv.strings("runs.done"))
         assertEquals(0, mind.answerScheduled())
+    }
+
+    /** A heartbeat or the dream may ask read_zeus; the phone answers it on its next wake like any read. */
+    @Test fun aScheduledReadZeusIsAnswered() {
+        waitingRun(listOf(ZeusRead.NAME to r.now - 600_000L), mapOf("area" to "index"))
+        assertEquals(1, mind.answerScheduled())
+        assertTrue(r.api.lastToolResult.orEmpty(), r.api.lastToolResult.orEmpty().contains("\"area\":\"places\""))
+        assertEquals(listOf("answered scheduled tool call: read_zeus"), traces)
+        assertTrue(r.api.agents.getValue(MindPrompts.ATHENA_NAME).tools.any { it.name == ZeusRead.NAME })
     }
 
     @Test fun aCallOlderThanTwelveHoursGetsTheOfflineError() {

@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field
 from . import calls, config, usage, desktop, term
 from .backup import Backups, Rejected as BackupRejected
 from .calypso import Calypso
-from .moneta import Moneta
+from .moneta import VIEW_MAX as MONETA_VIEW_MAX, Moneta
 from .argo import Argo
 from .cerberus import Cerberus
 from .chat import ROOMS, Chat, Refused
@@ -49,6 +49,7 @@ calypso = Calypso(store)
 moneta = Moneta(store, wake=lambda: fcm.wake(high=False))
 argo = Argo(store, wake=lambda: fcm.wake(high=False))
 chat.trip_info = argo.put
+chat.moneta_view = moneta.view
 chat.wake = lambda: fcm.wake(high=False)
 verifier = za.Verifier(keys_file=config.APPROVAL_KEYS, nonce_db=config.APPROVAL_DB)
 prom = pq.Queue(config.PROMETHEUS)
@@ -685,6 +686,20 @@ class OpsAck(BaseModel):
 @app.post("/api/moneta/ops/ack", dependencies=api)
 def moneta_ack(b: OpsAck):
     return {"ok": True, "removed": moneta.ack(b.ids)}
+
+
+@app.put("/api/moneta/view", dependencies=api)
+async def moneta_view_put(request: Request):
+    """The phone's view of Moneta for Iris (her moneta_view tool reads it over the channel). At most 512 KB."""
+    raw = b""
+    async for chunk in request.stream():
+        raw += chunk
+        if len(raw) > MONETA_VIEW_MAX:
+            raise HTTPException(413, "view too big")
+    try:
+        return {"ok": True, "rows": moneta.put_view(raw)}
+    except ValueError as e:
+        raise HTTPException(400, str(e)[:200])
 
 
 # ---- Argo: Iris's trip.info (over the zeus channel only) ---------------------------------------------

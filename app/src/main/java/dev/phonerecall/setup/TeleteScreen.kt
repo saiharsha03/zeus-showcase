@@ -76,27 +76,10 @@ fun TeleteScreen(hub: BrainHub, gutter: Dp, wide: Boolean, go: (Dest) -> Unit) {
     val tests = remember { tele.tests() }
     var shaking by rememberSaveable { mutableStateOf(false) }
     var openId by rememberSaveable { mutableStateOf<String?>(null) }
-    val askPerms = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { r ->
-        // Android won't show its sheet again after two refusals: the app's own page is where it changes then.
-        if (r.values.any { !it }) TeleteHub.open(ctx, Screen.APP_DETAILS)
-        tele.refresh()
-    }
-    val askGoogle = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { tele.refresh(force = true) }
+    val fix = rememberTeleteFix(hub, go)
     val calls = TeleteCalls(
         refresh = { tele.refresh(force = true) },
-        fix = { c ->
-            when (val f = c.fix) {
-                is Fix.Ask -> askPerms.launch(f.permissions.toTypedArray())
-                is Fix.System -> TeleteHub.open(ctx, f.screen)
-                is Fix.Open -> Dest.entries.firstOrNull { it.name == f.dest }?.let(go)
-                is Fix.Themis -> { dev.phonerecall.settings.ThemisNav.page = f.page; go(Dest.SETTINGS) }
-                Fix.GoogleCalendar -> dev.phonerecall.data.GoogleCalendarAuth.ask(ctx, { askGoogle.launch(IntentSenderRequest.Builder(it).build()) }) { tele.refresh(force = true) }
-                Fix.IndexNow -> { hub.indexMemoryNow(); tele.refresh() }
-                Fix.HeartbeatOn -> { hub.setHeartbeat(true); tele.refresh() }
-                Fix.SyncMind -> dev.phonerecall.mind.MindWork.syncNow(ctx)
-                null -> {}
-            }
-        },
+        fix = fix,
         test = { tele.run(it) },
         runAll = { tele.runAll() },
         askAthena = { hub.send(Telete.context(s.checks) + "\n\n" + Telete.ASK); go(Dest.DELPHI) },
@@ -136,6 +119,32 @@ fun TeleteScreen(hub: BrainHub, gutter: Dp, wide: Boolean, go: (Dest) -> Unit) {
         TeleteView(s.checks, tests.map { it.id to it.label }, tests.associate { it.id to it.what }, s.results, s.running, s.checking),
         gutter, wide, calls,
     )
+}
+
+/** What a check's fix button does: Android's sheet, the exact system screen, or a Zeus page. Shared with Genesis. */
+@Composable
+fun rememberTeleteFix(hub: BrainHub, go: (Dest) -> Unit): (Check) -> Unit {
+    val ctx = LocalContext.current
+    val tele = remember { TeleteHub.get(ctx) }
+    val askPerms = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { r ->
+        // Android won't show its sheet again after two refusals: the app's own page is where it changes then.
+        if (r.values.any { !it }) TeleteHub.open(ctx, Screen.APP_DETAILS)
+        tele.refresh()
+    }
+    val askGoogle = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { tele.refresh(force = true) }
+    return { c ->
+        when (val f = c.fix) {
+            is Fix.Ask -> askPerms.launch(f.permissions.toTypedArray())
+            is Fix.System -> TeleteHub.open(ctx, f.screen)
+            is Fix.Open -> Dest.entries.firstOrNull { it.name == f.dest }?.let(go)
+            is Fix.Themis -> { dev.phonerecall.settings.ThemisNav.page = f.page; go(Dest.SETTINGS) }
+            Fix.GoogleCalendar -> dev.phonerecall.data.GoogleCalendarAuth.ask(ctx, { askGoogle.launch(IntentSenderRequest.Builder(it).build()) }) { tele.refresh(force = true) }
+            Fix.IndexNow -> { hub.indexMemoryNow(); tele.refresh() }
+            Fix.HeartbeatOn -> { hub.setHeartbeat(true); tele.refresh() }
+            Fix.SyncMind -> dev.phonerecall.mind.MindWork.syncNow(ctx)
+            null -> {}
+        }
+    }
 }
 
 @Composable

@@ -24,7 +24,7 @@ object HorologionFixtures {
     val facts = AthenaFacts(
         tools = listOf("read_calendar" to "His calendar, next days. Summaries only.", "post_agora" to "Post in Agora, the agents' room."),
         circle = listOf(Triple("Perseus", "claude-sonnet-5-5", "Research and finding answers")),
-        models = listOf("Delphi" to "Haiku 5.5, Sonnet 5.5 when a turn needs more"), caps = listOf("Monthly cap" to "$100"),
+        models = listOf("Food photos (Iaso)" to "Sonnet 5.5"), caps = listOf("Monthly cap" to "$100"),
         auto = listOf(Switch("auto.add_reminder", "Reminder", "Runs without asking, with Undo", true)),
         hosts = listOf("api.anthropic.com"), permissions = listOf("POST_NOTIFICATIONS" to true, "READ_CALENDAR" to false),
         switches = listOf(Switch("brief", "Eos", "The morning brief", true), Switch("heartbeat", "Heartbeat", "Her hourly look", false), Switch("info.rhythms", "Horae", "Learns habits", true)),

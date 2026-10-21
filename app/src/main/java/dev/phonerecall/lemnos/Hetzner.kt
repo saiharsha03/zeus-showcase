@@ -1,6 +1,7 @@
 package dev.phonerecall.lemnos
 
 import dev.phonerecall.brain.NetGate
+import dev.phonerecall.brain.TlsGuard
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -27,7 +28,7 @@ object Hetzner {
         POWER_ON("poweron", "Power on", "power on"),
     }
 
-    private val client by lazy { OkHttpClient.Builder().addInterceptor(NetGate.okHttp).connectTimeout(10, TimeUnit.SECONDS).readTimeout(20, TimeUnit.SECONDS).build() }
+    private val client by lazy { OkHttpClient.Builder().sslSocketFactory(TlsGuard.sslSocketFactory, TlsGuard.trustManager).addInterceptor(NetGate.okHttp).connectTimeout(10, TimeUnit.SECONDS).readTimeout(20, TimeUnit.SECONDS).build() }
 
     private fun req(token: String, path: String) = Request.Builder().url(API + path).header("Authorization", "Bearer $token")
 

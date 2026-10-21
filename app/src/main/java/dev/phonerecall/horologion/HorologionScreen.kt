@@ -82,6 +82,9 @@ class HorologionCalls(
     val toggle: (String, Boolean) -> Unit = { _, _ -> },
     val model: (ModelPick, String) -> Unit = { _, _ -> },
     val undoModel: (ModelPick) -> Unit = {},
+    val cancelTask: (String) -> Unit = {},
+    val shortcut: (String, dev.phonerecall.shortcuts.Mode?) -> Unit = { _, _ -> },
+    val homeRoutine: (String, Boolean) -> Unit = { _, _ -> },
 )
 
 @Composable
@@ -198,6 +201,23 @@ private fun Editor(item: Item, calls: HorologionCalls, close: () -> Unit) {
                     TextAction("Cancel", close)
                 }
             }
+            is Action.Shortcut -> Row(Modifier.offset(x = -Space.s)) {
+                if (a.mode != dev.phonerecall.shortcuts.Mode.SUGGEST) TextAction("Just suggest", { calls.shortcut(a.id, dev.phonerecall.shortcuts.Mode.SUGGEST); close() }, emphasis = true)
+                if (a.canAuto && a.mode != dev.phonerecall.shortcuts.Mode.AUTO) TextAction("Do it with Undo", { calls.shortcut(a.id, dev.phonerecall.shortcuts.Mode.AUTO); close() }, emphasis = true)
+                TextAction("Delete", { calls.shortcut(a.id, null); close() })
+                TextAction("Cancel", close)
+            }
+            is Action.HomeRoutine -> {
+                Line("Devices, rooms and times are edited in Hestia, under Routines.", Type.caption, c.ink3)
+                Row(Modifier.offset(x = -Space.s)) {
+                    TextAction(if (a.on) "Turn off" else "Turn on", { calls.homeRoutine(a.id, !a.on); close() }, emphasis = true)
+                    TextAction("Cancel", close)
+                }
+            }
+            is Action.CancelTask -> Row(Modifier.offset(x = -Space.s)) {
+                TextAction("Cancel the task", { calls.cancelTask(a.id); close() }, emphasis = true)
+                TextAction("Keep it", close)
+            }
             is Action.Toggle -> Row(Modifier.offset(x = -Space.s)) {
                 TextAction(if (a.on) "Turn off" else "Turn on", { calls.toggle(a.key, a.on); close() }, emphasis = true)
                 TextAction("Cancel", close)
@@ -219,7 +239,7 @@ private fun ItemRow(item: Item, open: Boolean, onOpen: () -> Unit) {
         }
         if (item.action != null) {
             Spacer(Modifier.width(Space.s))
-            StatusWord(if (open) "Close" else when (item.action) { is Action.Ask, is Action.IrisCron -> "Ask"; is Action.Toggle -> if (item.value == "on") "On" else "Off"; else -> "Change" },
+            StatusWord(if (open) "Close" else when (item.action) { is Action.Ask, is Action.IrisCron -> "Ask"; is Action.Toggle -> if (item.value == "on") "On" else "Off"; is Action.HomeRoutine -> if (item.action.on) "On" else "Off"; is Action.CancelTask -> "Running"; else -> "Change" },
                 if (open) Tone.ACTIVE else Tone.QUIET, Modifier.padding(top = 2.dp))
         }
     }
@@ -274,6 +294,13 @@ fun load(c: android.content.Context, brain: BrainHub, paired: Boolean): Horologi
     val jobs = core.mindHost.locked { book.jobs() to { n: String -> lastRun(n) } }
     items += Horologion.athenaJobs(jobs.first, jobs.second, zone, now)
     items += Horologion.phoneJobs(PhoneJobs.all(c), zone)
+    runCatching { items += dev.phonerecall.qol.StreetParking.horologion(c, zone) }
+    runCatching { items += Horologion.shortcuts(dev.phonerecall.shortcuts.ShortcutsCore.book(c).rules(), zone) }.onFailure { missing += "Learned shortcuts: ${it.message}" }
+    runCatching {
+        val d = dev.phonerecall.hestia.HestiaRoutines.book(c).load()
+        val home = dev.phonerecall.hestia.HestiaCore.get(c).snapshot
+        items += Horologion.homeRoutines(d.routines, { r -> dev.phonerecall.hestia.RoutineRules.sentence(r, home, dev.phonerecall.hestia.HestiaRoutines.learned(c, r), d.never) }, zone)
+    }.onFailure { missing += "Home routines: ${it.message}" }
     runCatching { items += Horologion.athena(AthenaInventory.facts(c, brain.settings.value, brain.mind.value.heartbeat.on)) }.onFailure { missing += "Athena's setup: ${it.message}" }
     if (!paired) missing += "Iris, Atlas and the server show once this phone is paired with ${Place.VPS.myth}."
     else {
@@ -325,6 +352,18 @@ fun HorologionScreen(brain: BrainHub, lemnos: LemnosHub, wide: Boolean, gutter: 
         },
         model = { p, id -> withPrint("${p.label}: $id") { if (!AthenaInventory.setModel(p.key, id)) error("${p.label} can't use $id"); core.audit.log("The owner", "model", "${p.label}: ${p.current} to $id") } },
         undoModel = { p -> withPrint("${p.label}: undo") { if (!AthenaInventory.undoModel(p.key)) error("Nothing to undo"); core.audit.log("The owner", "model undo", "${p.label}: back to ${p.undo}") } },
+        // Cancelling only stops spending, so it needs no fingerprint.
+        shortcut = { id, mode -> withPrint(if (mode == null) "Delete the shortcut" else "Change the shortcut") {
+            val b = dev.phonerecall.shortcuts.ShortcutsCore.book(app)
+            if (mode == null) b.remove(id) else if (!b.setMode(id, mode)) error("That shortcut can't run on its own")
+            core.audit.log("The owner", "shortcut", "$id: ${mode?.name?.lowercase() ?: "deleted"}")
+        } },
+        homeRoutine = { id, on -> withPrint(if (on) "Turn the routine on" else "Turn the routine off") {
+            dev.phonerecall.hestia.HestiaRoutines.book(app).edit(id) { it.copy(on = on) }
+            dev.phonerecall.hestia.HestiaRoutines.arm(app)
+            core.audit.log("The owner", "home routine", "$id: ${if (on) "on" else "off"}")
+        } },
+        cancelTask = { id -> scope.launch { withContext(Dispatchers.IO) { core.mindHost.locked { cancelTask(id) } }; reload() } },
         toggle = { key, on -> withPrint("Turn ${if (on) "off" else "on"}") { if (!AthenaInventory.toggle(app, key, on, { brain.toggleAuto(it) }, { brain.setHeartbeat(it) })) error("Not a switch") } },
     )
     Column(Modifier.fillMaxSize()) {

@@ -82,7 +82,7 @@ fun rememberFatesCallbacks(hub: BrainHub, onRefused: (String) -> Unit = {}): Fat
     }
 }
 
-/** Delphi: the chat with Athena. */
+/** Athena: the chat with her (the same Athena as the heartbeat and Agora). The class keeps its old name. */
 @Composable
 fun DelphiScreen(hub: BrainHub, gutter: Dp, openCalypso: () -> Unit) {
     val chat by hub.chat.collectAsStateWithLifecycle()
@@ -96,6 +96,7 @@ fun DelphiScreen(hub: BrainHub, gutter: Dp, openCalypso: () -> Unit) {
     DelphiContent(
         chat, proposals.associateBy { it.id }, calendars, settings.keySet, gutter, cb,
         onSend = { hub.send(it) }, onRetry = { hub.retry() }, onNewChat = { hub.newChat() }, openCalypso = openCalypso,
+        onEarlier = { hub.earlier() },
         notice = notice,
         tryCommand = hermes::tryRun,
         reply = { dev.phonerecall.hermes.HermesReply(hermes, Modifier.padding(horizontal = gutter, vertical = Space.s)) },
@@ -115,13 +116,15 @@ fun DelphiContent(
     onRetry: () -> Unit,
     onNewChat: () -> Unit,
     openCalypso: () -> Unit,
+    /** Loads the next older page of the history. */
+    onEarlier: () -> Unit = {},
     notice: String? = null,
     /** Runs the words as a Hermes command; false when they aren't one. */
     tryCommand: (String) -> Boolean = { false },
     reply: (@Composable () -> Unit)? = null,
 ) {
     val c = Athena.colors
-    var draft by rememberSaveable { mutableStateOf("") }
+    var draft by rememberSaveable { mutableStateOf(ChatSeed.take().orEmpty()) }
     val busy = chat.working != null
     val list = rememberLazyListState()
     val count = chat.lines.size + (if (chat.streaming.isNotEmpty()) 1 else 0) + (if (busy || chat.error != null) 1 else 0)
@@ -130,7 +133,8 @@ fun DelphiContent(
     val send: () -> Unit = {
         if (draft.isNotBlank()) {
             if (command && tryCommand(draft.trim())) draft = ""
-            else if (!busy && keySet) { onSend(draft); draft = "" }
+            // He can send while she works: it queues and goes next.
+            else if (keySet) { onSend(draft); draft = "" }
         }
     }
 
@@ -172,6 +176,7 @@ fun DelphiContent(
                     contentPadding = PaddingValues(start = gutter, end = gutter, top = Space.s, bottom = Space.l),
                     verticalArrangement = Arrangement.spacedBy(Space.m),
                 ) {
+                    if (chat.earlier) item(key = "earlier") { TextAction("Show earlier", onEarlier) }
                     itemsIndexed(chat.lines, key = { _, it -> it.id }) { i, line ->
                         when (line.kind) {
                             LineKind.USER -> UserLine(line.text)
@@ -184,6 +189,12 @@ fun DelphiContent(
                                 Line(line.text, Type.small, c.ink3, Modifier.widthIn(max = 560.dp))
                             }
                             LineKind.ERROR -> Line(line.text, Type.small, c.alert)
+                            // Where a chat or one of her daily sessions began: a thin rule, the history stays one scroll.
+                            LineKind.DIVIDER -> Row(Modifier.fillMaxWidth().padding(vertical = Space.xs), verticalAlignment = Alignment.CenterVertically) {
+                                Box(Modifier.weight(1f).height(1.dp).background(c.rule))
+                                Line(line.text, Type.caption, c.ink3, Modifier.padding(horizontal = Space.s))
+                                Box(Modifier.weight(1f).height(1.dp).background(c.rule))
+                            }
                             LineKind.MEMORY -> dev.phonerecall.oneiroi.MemoryView.decode(line.text)?.let { dev.phonerecall.oneiroi.MemoryAnswerCard(it, Modifier.widthIn(max = 620.dp)) }
                             LineKind.PROPOSAL -> proposals[line.proposalId]?.let {
                                 FatesCard(it, cb, Modifier.widthIn(max = 620.dp), calendars)
@@ -213,7 +224,7 @@ fun DelphiContent(
             // Commands work without a key: they never reach Athena.
             UnderlineField(draft, { draft = it }, if (keySet) "Ask Athena" else "Add a key first, or give a command", Modifier.weight(1f), onSubmit = send)
             Spacer(Modifier.width(Space.s))
-            TextAction(if (command) "Run" else "Ask", send, emphasis = true, enabled = draft.isNotBlank() && (command || (keySet && !busy)))
+            TextAction(if (command) "Run" else "Ask", send, emphasis = true, enabled = draft.isNotBlank() && (command || keySet))
         }
     }
     }
@@ -313,4 +324,10 @@ fun FatesContent(proposals: List<Proposal>, calendars: List<CalendarChoice>, gut
             }
         }
     }
+}
+
+/** A first line for the chat, set by another screen just before it opens Delphi (Hestia's "Edit by chat"). */
+object ChatSeed {
+    @Volatile var text: String? = null
+    fun take(): String? = text.also { text = null }
 }

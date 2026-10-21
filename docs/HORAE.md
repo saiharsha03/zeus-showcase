@@ -37,12 +37,12 @@ notice and the in-app card also show his things to tell and any weather extreme 
 
 Numbers in the family's country call on WhatsApp, video first, falling back to voice. Local numbers are a phone call
 (the dialer opens with the number, because Zeus has no CALL_PHONE). A bare national number is read through the
-contact's WhatsApp JID. Delphi's `place_call` only proposes, and calls are never auto-approved. The title Delphi gets
+contact's WhatsApp JID. Athena's `place_call` only proposes, and calls are never auto-approved. The title Athena gets
 back has his own words and, at night there, "(1:30 AM their time, usually asleep)".
 
 ## Things to tell
 
-Delphi's `bookmark_for(person, note)` (a proposal) or the quick-add on the call row. They show on the call-home nudge
+Athena's `bookmark_for(person, note)` (a proposal) or the quick-add on the call row. They show on the call-home nudge
 and card right before the call, and he ticks them off after.
 
 ## Weather at home

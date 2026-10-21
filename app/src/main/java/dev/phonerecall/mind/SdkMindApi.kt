@@ -49,6 +49,7 @@ import com.anthropic.models.beta.sessions.BetaManagedAgentsMemoryStoreResourcePa
 import com.anthropic.models.beta.sessions.BetaManagedAgentsMultiagentRosterEntryParams
 import com.anthropic.models.beta.sessions.BetaManagedAgentsSession
 import com.anthropic.models.beta.sessions.SessionCreateParams
+import com.anthropic.models.beta.sessions.SessionListParams
 import com.anthropic.models.beta.sessions.SessionUpdateParams
 import com.anthropic.models.beta.sessions.events.BetaManagedAgentsUserCustomToolResultEventParams
 import com.anthropic.models.beta.sessions.events.BetaManagedAgentsUserInterruptEventParams
@@ -92,6 +93,8 @@ class SdkMindApi(private val key: () -> String?, private val origin: String = Ne
                 .apiKey(k)
                 .baseUrl(origin)
                 .addInterceptor(NetGate.interceptor)
+                .sslSocketFactory(dev.phonerecall.brain.TlsGuard.sslSocketFactory)
+                .trustManager(dev.phonerecall.brain.TlsGuard.trustManager)
                 .openTelemetry(false)
                 .maxRetries(0)
                 .timeout(Duration.ofSeconds(90))
@@ -216,6 +219,7 @@ class SdkMindApi(private val key: () -> String?, private val origin: String = Ne
             activeSeconds = u.activeSeconds().orElse(0.0),
             budgetCents = s.budget().map { b -> b.maxListCost().amount().toLongOrNull() }.orElse(null),
             title = s.title().orElse(null),
+            tokens = u.inputTokens().orElse(0).toLong() + u.cacheReadInputTokens().orElse(0).toLong(),
         )
     }
 
@@ -303,13 +307,30 @@ class SdkMindApi(private val key: () -> String?, private val origin: String = Ne
     }
 
     override fun sendMessage(sessionId: String, text: String) = creating {
-        c().beta().sessions().events().send(
-            sessionId,
-            EventSendParams.builder().addEvent(
-                BetaManagedAgentsUserMessageEventParams.builder().type(BetaManagedAgentsUserMessageEventParams.Type.USER_MESSAGE).addTextContent(text).build(),
-            ).build(),
-        )
+        try {
+            c().beta().sessions().events().send(
+                sessionId,
+                EventSendParams.builder().addEvent(
+                    BetaManagedAgentsUserMessageEventParams.builder().type(BetaManagedAgentsUserMessageEventParams.Type.USER_MESSAGE).addTextContent(text).build(),
+                ).build(),
+            )
+        } catch (e: BadRequestException) { throw busy(e.message.orEmpty()) ?: e }
         Unit
+    }
+
+    companion object {
+        /**
+         * A 400 for a user.message the session can't take now: it waits on a tool result ("Invalid user.message
+         * event at events[0]: waiting", Clio 2026-10-20) or is paused at its budget (only settle events are accepted).
+         */
+        fun busy(message: String): SessionBusy? {
+            val m = message.lowercase()
+            return when {
+                "budget" in m -> SessionBusy(true, message)
+                "waiting" in m || "requires_action" in m || "settle" in m -> SessionBusy(false, message)
+                else -> null
+            }
+        }
     }
 
     override fun sendToolResult(sessionId: String, toolUseId: String, text: String, isError: Boolean) = creating {
@@ -390,6 +411,14 @@ class SdkMindApi(private val key: () -> String?, private val origin: String = Ne
 
     override fun archiveDeployment(id: String) { c().beta().deployments().archive(id) }
 
+    override fun sessionsOf(agentId: String): List<SessionInfo> =
+        c().beta().sessions().list(SessionListParams.builder().agentId(agentId).build()).autoPager().take(500).map { info(it) }.toList()
+
+    override fun archiveSession(id: String) { try { c().beta().sessions().archive(id) } catch (_: NotFoundException) { } }
+
+    override fun deploymentsNamed(prefix: String): List<DeploymentInfo> =
+        c().beta().deployments().list().autoPager().filter { it.name().startsWith(prefix) && !it.archivedAt().isPresent }.map { dinfo(it) }.toList()
+
     override fun runs(deploymentId: String, sinceMs: Long): List<RunInfo> =
         c().beta().deploymentRuns().list(
             DeploymentRunListParams.builder().deploymentId(deploymentId).createdAtGt(OffsetDateTime.ofInstant(Instant.ofEpochMilli(sinceMs), ZoneOffset.UTC)).build(),
@@ -426,17 +455,17 @@ class SdkMindApi(private val key: () -> String?, private val origin: String = Ne
     // ---- Prometheus (ForgeApi): a code agent, its own limited sandbox, a vault, repository sessions ----
 
     /** bash and the file tools, always allowed inside a sandbox whose network is GitHub only. No web tools. */
-    private fun codeToolset(): BetaManagedAgentsAgentToolset20260401Params {
+    private fun codeToolset(on: Set<String>): BetaManagedAgentsAgentToolset20260401Params {
         val allow = BetaManagedAgentsAlwaysAllowPolicy.builder().type(BetaManagedAgentsAlwaysAllowPolicy.Type.ALWAYS_ALLOW).build()
         return BetaManagedAgentsAgentToolset20260401Params.builder()
             .type(BetaManagedAgentsAgentToolset20260401Params.Type.AGENT_TOOLSET_20260401)
             .defaultConfig(BetaManagedAgentsAgentToolsetDefaultConfigParams.builder().enabled(false).build())
-            .addConfig(BetaManagedAgentsBashToolConfigParams.builder().enabled(true).permissionPolicy(allow).build())
-            .addConfig(BetaManagedAgentsReadToolConfigParams.builder().enabled(true).permissionPolicy(allow).build())
-            .addConfig(BetaManagedAgentsWriteToolConfigParams.builder().enabled(true).permissionPolicy(allow).build())
-            .addConfig(BetaManagedAgentsEditToolConfigParams.builder().enabled(true).permissionPolicy(allow).build())
-            .addConfig(BetaManagedAgentsGlobToolConfigParams.builder().enabled(true).permissionPolicy(allow).build())
-            .addConfig(BetaManagedAgentsGrepToolConfigParams.builder().enabled(true).permissionPolicy(allow).build())
+            .addConfig(BetaManagedAgentsBashToolConfigParams.builder().enabled("bash" in on).permissionPolicy(allow).build())
+            .addConfig(BetaManagedAgentsReadToolConfigParams.builder().enabled("read" in on).permissionPolicy(allow).build())
+            .addConfig(BetaManagedAgentsWriteToolConfigParams.builder().enabled("write" in on).permissionPolicy(allow).build())
+            .addConfig(BetaManagedAgentsEditToolConfigParams.builder().enabled("edit" in on).permissionPolicy(allow).build())
+            .addConfig(BetaManagedAgentsGlobToolConfigParams.builder().enabled("glob" in on).permissionPolicy(allow).build())
+            .addConfig(BetaManagedAgentsGrepToolConfigParams.builder().enabled("grep" in on).permissionPolicy(allow).build())
             .addConfig(BetaManagedAgentsWebFetchToolConfigParams.builder().enabled(false).build())
             .addConfig(BetaManagedAgentsWebSearchToolConfigParams.builder().enabled(false).build())
             .build()
@@ -446,7 +475,7 @@ class SdkMindApi(private val key: () -> String?, private val origin: String = Ne
         modelGuard(spec.model, null) {
             ref(c().beta().agents().create(
                 AgentCreateParams.builder().name(spec.name).model(BetaManagedAgentsModelConfigParams.builder().id(spec.model).build())
-                    .description(spec.description).system(spec.system).addTool(codeToolset()).build(),
+                    .description(spec.description).system(spec.system).addTool(codeToolset(spec.builtins)).apply { spec.tools.forEach { addTool(custom(it)) } }.build(),
             ))
         }
     }
@@ -455,7 +484,7 @@ class SdkMindApi(private val key: () -> String?, private val origin: String = Ne
         ref(c().beta().agents().update(
             ref.id,
             AgentUpdateParams.builder().version(ref.version).name(spec.name).model(BetaManagedAgentsModelConfigParams.builder().id(spec.model).build())
-                .description(spec.description).system(spec.system).addTool(codeToolset()).build(),
+                .description(spec.description).system(spec.system).addTool(codeToolset(spec.builtins)).apply { spec.tools.forEach { addTool(custom(it)) } }.build(),
         ))
     }
 
@@ -499,7 +528,7 @@ class SdkMindApi(private val key: () -> String?, private val origin: String = Ne
         )
     }
 
-    override fun createRepoSession(agent: AgentRef, environmentId: String, vaultId: String, repo: RepoMount, title: String, nonce: String, budgetCents: Long, firstMessage: String): SessionInfo = creating {
+    override fun createRepoSession(agent: AgentRef, environmentId: String, vaultId: String?, repo: RepoMount, title: String, nonce: String, budgetCents: Long, firstMessage: String): SessionInfo = creating {
         info(
             c().beta().sessions().create(
                 SessionCreateParams.builder()
@@ -512,7 +541,7 @@ class SdkMindApi(private val key: () -> String?, private val origin: String = Ne
                             .url(repo.url).authorizationToken(repo.token).branchCheckout(repo.branch).mountPath(repo.mountPath)
                             .build(),
                     )
-                    .addVaultId(vaultId)
+                    .apply { vaultId?.let { addVaultId(it) } }
                     .limitBudget(money(budgetCents))
                     .metadata(SessionCreateParams.Metadata.builder().putAdditionalProperty("zeus_nonce", JsonValue.from(nonce)).build())
                     .addInitialEvent(BetaManagedAgentsUserMessageEventParams.builder().type(BetaManagedAgentsUserMessageEventParams.Type.USER_MESSAGE).addTextContent(firstMessage).build())

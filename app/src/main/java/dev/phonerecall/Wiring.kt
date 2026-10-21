@@ -17,15 +17,31 @@ import dev.phonerecall.brain.AlarmWatch as Hypnos
 class ZeusApp : Application() {
     override fun onCreate() {
         super.onCreate()
+        // Before anything seals: the wrapped data keys (no-backup storage, useless without this phone's Keystore).
+        dev.phonerecall.brain.SealKeys.dir = java.io.File(noBackupFilesDir, "seal")
         dev.phonerecall.clio.Clio.init(this)
+        dev.phonerecall.fresh.FreshStart.logPending()
         dev.phonerecall.clio.DeviceWatch.start(this)
+        dev.phonerecall.qol.WorkMuteCore.watch(this)
+        // Bins out: the Thursday preset and the evening alarm, once per process start.
+        kotlin.concurrent.thread(name = "qol-bins") { runCatching { dev.phonerecall.qol.Bins.arm(this) } }
+        kotlin.concurrent.thread(name = "zeus-anr") { runCatching { dev.phonerecall.clio.AnrReport.logNew(this) } }
         Wiring.install(this)
     }
 
-    /** Drop cached plain text when Android asks for memory back (also when the UI goes away for a while). */
+    /**
+     * Drop cached plain text when Android is short of memory. Not on leaving the app (TRIM_MEMORY_BACKGROUND): the
+     * workers read the same rows minutes later, so dropping it there only made the next sync open every row again.
+     */
     override fun onTrimMemory(level: Int) {
         super.onTrimMemory(level)
-        if (level >= android.content.ComponentCallbacks2.TRIM_MEMORY_BACKGROUND) dev.phonerecall.brain.SealCache.forget()
+        @Suppress("DEPRECATION")
+        if (level >= android.content.ComponentCallbacks2.TRIM_MEMORY_COMPLETE || level == android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL) dev.phonerecall.brain.SealCache.forget()
+    }
+
+    override fun onLowMemory() {
+        super.onLowMemory()
+        dev.phonerecall.brain.SealCache.forget()
     }
 }
 
@@ -68,6 +84,11 @@ object Wiring {
 
         dev.phonerecall.argo.ArgoLinks.alarms = dev.phonerecall.argo.AlarmWatch { watch().next()?.at }
         dev.phonerecall.argo.ArgoLinks.clocks = dev.phonerecall.argo.TwoClocks { z, label -> dev.phonerecall.brain.TwoClocks.trip = z?.let { it to label } }
+
+        // The fresh start: Theogony asks Genesis's topics and files his answers; Senses keeps his "always matter" kinds.
+        dev.phonerecall.theogony.Interview.extras = { dev.phonerecall.fresh.GenesisHub.get(c).gaps() }
+        dev.phonerecall.theogony.Interview.onAnswer = { g, w -> dev.phonerecall.fresh.GenesisRoutes.apply(c, g, w) }
+        dev.phonerecall.fresh.SenseRules.kinds = { dev.phonerecall.fresh.GenesisHub.get(c).matters() }
 
         dev.phonerecall.data.Milestones.register("car") { dev.phonerecall.odyssey.CarMilestones.of(dev.phonerecall.odyssey.OdysseyStore.load(c)) }
         dev.phonerecall.data.Milestones.register("theogony") {

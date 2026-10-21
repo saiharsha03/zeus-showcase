@@ -307,6 +307,7 @@ object AlarmPlanner {
 
     /** The alarm that was due at `ring` is gone. Tells the brief why it was set, when the brief is there. */
     fun dismissed(app: Context, ring: Long) {
+        runCatching { dev.phonerecall.hestia.HestiaRoutines.eventAsync(app, dev.phonerecall.hestia.Moment.WAKE) }
         val hook = AlarmHooks.onDismissed ?: return
         val watch = AlarmWatch.get(app)
         val date = Days.at(ring, zone).toLocalDate()
@@ -348,7 +349,7 @@ object AlarmPlanner {
     private fun festival(app: Context, name: String, ring: Long, date: LocalDate): Moment {
         val outfit = dev.phonerecall.closet.OutfitState.state.value?.takeIf { it.date == date }?.title ?: Festivals.on(date)?.outfit
         // Home is his mother or father in the people graph, when one is confirmed and in Contacts.
-        val home = runCatching { BrainCore.get(app).store.people().firstOrNull { it.relation == Relation.MOTHER || it.relation == Relation.FATHER } }.getOrNull()
+        val home = runCatching { BrainCore.get(app).store.related().firstOrNull { it.relation == Relation.MOTHER || it.relation == Relation.FATHER } }.getOrNull()
         val number = home?.let { Phones.of(app, it.name) }?.let { l -> l.firstOrNull { Phones.isIndia(it) } ?: l.firstOrNull() }
         return AlarmMoments.festival(name, ring, outfit, home?.name?.substringBefore(' '), number?.let { Phones.whatsapp(it, null) })
     }

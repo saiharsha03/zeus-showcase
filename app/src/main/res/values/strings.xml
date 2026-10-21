@@ -5,7 +5,7 @@
     <string name="widget_today_about">Olympus today: next events, top tasks, the top Home cards, a birthday if any. Resize up to a full page</string>
     <string name="widget_chronos_about">Chronos: today and the next two days, the kind of day, and birthdays</string>
     <string name="widget_agora_about">Praxis: your open tasks, and the agents’ when paired. Tick your own to finish them</string>
-    <string name="widget_delphi_about">Delphi: ask Athena by typing or by voice</string>
+    <string name="widget_delphi_about">Ask Athena by typing or by voice</string>
     <string name="widget_hermes_about">Ask Zeus: open apps, set alarms, call and text, by typing or by voice</string>
     <string name="widget_venus_about">Venus: today’s outfit from your closet</string>
     <string name="widget_music_about">Now playing, with back, play or pause, and next</string>

@@ -11,9 +11,10 @@ import android.os.Looper
 import android.os.PersistableBundle
 import android.provider.CalendarContract
 import androidx.compose.runtime.Immutable
-import com.anthropic.models.messages.MessageParam
 import dev.phonerecall.home.CardSource
 import dev.phonerecall.home.GeneratedCard
+import dev.phonerecall.home.CardAction
+import dev.phonerecall.home.ActionRole
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -32,6 +33,8 @@ data class ChatState(
     val streaming: String = "",
     val working: String? = null,
     val error: String? = null,
+    /** Older lines exist above the ones loaded. */
+    val earlier: Boolean = false,
 )
 
 /** What phase 2b's screens draw: Parnassus, the sections, People, Lethe and the waiting worker jobs. */
@@ -140,20 +143,11 @@ class BrainHub(
     val senses: StateFlow<SensesState> = _senses.asStateFlow()
 
     private val fates = core.fates
-    private val tools = ToolBox(reads, fates, core.mindHost, dev.phonerecall.music.MusicCore.get(app), dev.phonerecall.vault.VaultCore.get(app).tools, home = dev.phonerecall.hestia.HestiaCore.get(app), alarms = dev.phonerecall.brain.AlarmWatch.get(app), trips = dev.phonerecall.argo.ArgoTools(app))
-    /** The spend cap is shared with the background triage and the mind (BrainCore.spend), so none overwrites another. */
-    private val engine = AthenaEngine(core.gateway, tools, core.delphiSpend)
 
     private val _mind = MutableStateFlow(MindState())
     val mind: StateFlow<MindState> = _mind.asStateFlow()
 
     val oneiroi = dev.phonerecall.oneiroi.Oneiroi.get(app)
-    /** His last message to the model, for the humanizer's "was this a draft" check. */
-    @Volatile private var lastAsk = ""
-
-    /** The API history of the open chat, exactly as sent. Touched only from the turn's IO job. */
-    private var history: MutableList<MessageParam> = ArrayList()
-    @Volatile private var busy = false
 
     private val stopListening: () -> Unit
 
@@ -165,15 +159,16 @@ class BrainHub(
         }
         scope.launch { core.spend.state.collect { s -> _settings.update { it.copy(spend = s) } } }
         // The listener and the workers change things while the screens are open: reload on each bump.
-        scope.launch(Dispatchers.IO) { core.changes.collect { reloadSenses(); reloadProposals(); reloadCards(); reloadMind(); reloadAuto() } }
+        scope.launch(Dispatchers.IO) { core.changes.collect { reloadSenses(); reloadProposals(); reloadCards(); reloadMind(); reloadAuto(); reloadChat() } }
+        scope.launch(Dispatchers.IO) { core.mindHost.chatStatus.collect { w -> _chat.update { it.copy(working = w) } } }
         io {
             val s = prefs.load()
             _settings.value = s.copy(spend = core.spend.state.value, keySet = vault.has())
             fates.autoApprove = s.autoApprove
             _budget.value = core.attention.budget()
             val chat = db.latestChat()
-            if (chat != null) history = db.params(chat)
-            _chat.value = ChatState(loaded = true, chatId = chat, lines = chat?.let { db.lines(it) }.orEmpty())
+            _chat.value = ChatState(loaded = true, chatId = chat)
+            reloadChat()
             fates.sweep()
             reloadProposals()
             reloadCards()
@@ -205,8 +200,10 @@ class BrainHub(
     /** Olympus's proactive cards, through the day's attention budget. What waits goes to the morning brief. */
     private fun reloadCards() {
         val now = System.currentTimeMillis()
-        val all = db.cards(now).map {
-            GeneratedCard(it.title, it.body, listOf("Got it"), it.expiresAt, CardSource.ATHENA, id = "athena-${it.id}", real = true)
+        val all = LiveActions.codeCards(now).map { codeCard(it) } + Agency.planCards(app, now).map { planCard(it) } + db.cards(now).map {
+            // "Call back Mom?": her card wears the real buttons of the card she pointed at, while its notification lasts.
+            GeneratedCard(it.title, it.body, listOf("Got it"), it.expiresAt, CardSource.ATHENA, id = "athena-${it.id}", real = true,
+                live = LiveActions.borrowedFrom(it.id)?.let(::live).orEmpty(), replies = LiveActions.borrowedFrom(it.id)?.let(::replies).orEmpty())
         } + core.store.cards(now).map { senseCard(it) }
         _cards.value = core.attention.cards(all, { it.id }, { it.title }, { it.urgency })
         _digest.value = core.attention.forBrief()
@@ -231,7 +228,11 @@ class BrainHub(
 
     /** On resume: expire stale proposals, refresh the calendar list for pickers, run hygiene once, sync the mind. */
     fun onResume() = io {
+        // Not at process start: an alarm or geofence wake-up must not wait behind a minute of old-format decrypts.
+        dev.phonerecall.brain.SealMigration.start(app)
         fates.sweep()
+        // Missed calls he returned while Zeus was closed.
+        core.sweepCalls()
         // The fatigue meter's one meta-proposal a week, when a kind has earned it.
         fates.offerAutoApprove()
         reloadProposals()
@@ -307,7 +308,7 @@ class BrainHub(
         dev.phonerecall.oneiroi.OneiroiWork.schedule(app)
         val chat = _chat.value.chatId
         val last = _chat.value.lines.lastOrNull()?.at
-        if (chat != null && last != null && System.currentTimeMillis() - last > 30 * 60_000L && !busy) dev.phonerecall.oneiroi.OneiroiWork.reflect(app, chat)
+        if (chat != null && last != null && System.currentTimeMillis() - last > 30 * 60_000L && core.mindHost.chatStatus.value == null) dev.phonerecall.oneiroi.OneiroiWork.reflect(app, chat)
         runCatching { oneiroi.sweepIfDue() }
         oneiroi.reload()
     }
@@ -474,12 +475,64 @@ class BrainHub(
 
     fun notBirthday(id: Long) = senses { db.get(id)?.let { notBirthday(it) } }
 
-    private fun senseCard(c: SenseCard) = GeneratedCard(
-        c.title, c.body, listOf("Got it"), c.until,
-        when (c.source) { "BANK" -> CardSource.BANK; "SECURITY" -> CardSource.SECURITY; "METRON" -> CardSource.METRON; else -> CardSource.ATHENA },
-        // The update time is part of the id, so "Amma called twice" shows again after he cleared "Amma called".
-        id = "sense-${c.key}-${c.at}", real = true,
-        urgency = senseUrgency(c),
+    private fun senseCard(c: SenseCard): GeneratedCard {
+        val (actions, link) = AccountAlerts.actions(c.key, c.source)
+        return GeneratedCard(
+            c.title, c.body, actions, c.until,
+            when (c.source) {
+                "BANK" -> CardSource.BANK; "SECURITY" -> CardSource.SECURITY; "METRON" -> CardSource.METRON
+                AccountAlerts.QUIET_SOURCE -> CardSource.ACCOUNT; else -> CardSource.ATHENA
+            },
+            // The update time is part of the id, so "Amma called twice" shows again after he cleared "Amma called".
+            id = SenseCards.id(c), real = true,
+            urgency = senseUrgency(c),
+            live = live(c.key),
+            replies = replies(c.key, c.body) + laterChip(c),
+            link = link,
+        )
+    }
+
+    /** A sense card's buttons from its notification (one-tap agency); empty once the notification is gone. A reply becomes Edit next to its chips. */
+    private fun live(card: String): List<CardAction> {
+        val note = LiveActions.noteOf(card) ?: return emptyList()
+        return LiveActions.forNote(note).mapIndexed { i, a -> CardAction(if (a.reply) "Edit" else a.label, ActionRole.LIVE, Agency.payload(note, i)) }
+    }
+
+    /** The chips for the first button that takes a text: Athena's draft (humanized), then two short ones. */
+    private fun replies(card: String, text: String? = null): List<CardAction> {
+        val note = LiveActions.noteOf(card) ?: return emptyList()
+        val actions = LiveActions.forNote(note)
+        val i = actions.indexOfFirst { it.says }.takeIf { it >= 0 } ?: return emptyList()
+        val draft = LiveActions.draftForNote(note)?.let { dev.phonerecall.oneiroi.Humanizer.fix(it).text }
+        // Asked where he is while he drives: "Home in N min" first among the short ones (qol/HomeEta).
+        val eta = runCatching { dev.phonerecall.qol.HomeEta.chip(app, text) }.getOrNull()
+        return Replies.chips(draft, listOfNotNull(eta) + actions[i].choices, card.startsWith("call:"))
+            .mapIndexed { n, t -> CardAction(Replies.label(t, draft != null && n == 0), ActionRole.LIVE_SEND, Agency.sayPayload(note, i, t)) }
+    }
+
+    /** "Later" on a message card (qol/Later): the fitting time named on the chip. */
+    private fun laterChip(c: SenseCard): List<CardAction> {
+        if (!c.key.startsWith("msg:")) return emptyList()
+        return runCatching { listOf(dev.phonerecall.qol.Later.chip(SenseCards.instance(c), dev.phonerecall.qol.Later.now(app).first)) }.getOrDefault(emptyList())
+    }
+
+    /** A plan from a chat thread: "PUBG at 10:00 PM with Alex", its app and one-tap replies, or the two readings of an unclear time. */
+    private fun planCard(p: Agency.PlanCard) = GeneratedCard(
+        p.title, p.body, emptyList(), p.until, CardSource.ATHENA,
+        id = "plan-${p.thread.hashCode()}-${p.plan.time ?: 0}", real = true, urgency = Urgency.TIME_CRITICAL, travel = true,
+        live = LiveActions.forNote(p.note).mapIndexed { i, a -> CardAction(if (a.reply) "Edit" else a.label, ActionRole.LIVE, Agency.payload(p.note, i)) }
+            .filter { it.label != "Edit" || p.plan.choices.isEmpty() },
+        replies = if (p.plan.choices.isNotEmpty()) p.picks.map { (label, at) -> CardAction(label, ActionRole.PLAN_PICK, "${p.thread}|$at") }
+        else LiveActions.forNote(p.note).indexOfFirst { it.reply }.takeIf { it >= 0 }?.let { i ->
+            Plans.REPLIES.map { CardAction(it, ActionRole.LIVE_SEND, Agency.sayPayload(p.note, i, it)) }
+        }.orEmpty(),
+    )
+
+    /** A one-time code, in memory only: the card never shows the code, and goes with the notification (ten minutes at most). */
+    private fun codeCard(c: LiveActions.CodeCard) = GeneratedCard(
+        "Code from ${c.app}", "Copy it from here. Zeus clears the clipboard after a minute.", emptyList(), c.until, CardSource.ATHENA,
+        id = "code-${c.note.hashCode()}-${c.at}", real = true, urgency = Urgency.TIME_CRITICAL,
+        live = LiveActions.forNote(c.note).mapIndexed { i, a -> CardAction(a.label, ActionRole.LIVE, Agency.payload(c.note, i)) },
     )
 
     /** Calls and messages from people, and last chances, never wait; deliveries and notes may. */
@@ -492,35 +545,31 @@ class BrainHub(
 
     // ---- Delphi ----
 
+    /** Any time, even while she is answering: Oneiroi and the eggs answer on the phone, everything else goes to her. */
     fun send(text: String) {
         val t = text.trim()
-        if (t.isEmpty() || busy) return
-        busy = true
-        _chat.update { it.copy(working = "Thinking", error = null) }
+        if (t.isEmpty()) return
+        _chat.update { it.copy(error = null) }
         io {
             try {
-                val chat = _chat.value.chatId ?: db.newChat().also { id -> history = ArrayList(); _chat.update { it.copy(chatId = id) } }
+                val chat = _chat.value.chatId ?: db.newChat().also { id -> _chat.update { it.copy(chatId = id) } }
                 // Oneiroi: "what do you know about ..." and "#12 is wrong, it's ..." are answered here, no model.
                 oneiroi.ask(t)?.let { answer ->
                     val u = db.addLine(chat, LineKind.USER, t)
                     val l = db.addLine(chat, LineKind.MEMORY, dev.phonerecall.oneiroi.MemoryView.encode(answer))
-                    _chat.update { it.copy(lines = it.lines + u + l, working = null) }
-                    busy = false
+                    _chat.update { it.copy(lines = it.lines + u + l) }
                     return@io
                 }
-                lastAsk = t
                 val notes = db.takeNotes(chat)
                 // Names and nicknames he uses resolve through the lookup table before Athena answers.
                 val pre = notes.map { "[Zeus note] $it" } + listOfNotNull(oneiroi.refsNote(t))
-                val content = if (pre.isEmpty()) t else pre.joinToString("\n") + "\n\n" + t
                 val line = db.addLine(chat, LineKind.USER, t)
                 _chat.update { it.copy(lines = it.lines + line) }
                 // Easter eggs: the oracle answers "Who are you?" once, on the phone; asking Annabeth gets a wink.
                 dev.phonerecall.ui.Eggs.oracle(t, dev.phonerecall.ui.Eggs.oracleUsed())?.let { riddle ->
                     dev.phonerecall.ui.Eggs.useOracle()
                     val l = db.addLine(chat, LineKind.ATHENA, riddle)
-                    _chat.update { it.copy(lines = it.lines + l, working = null) }
-                    busy = false
+                    _chat.update { it.copy(lines = it.lines + l) }
                     return@io
                 }
                 dev.phonerecall.ui.Eggs.annabethWink(t)?.let { wink ->
@@ -528,13 +577,11 @@ class BrainHub(
                     val l = db.addLine(chat, LineKind.NOTE, wink, delivered = true)
                     _chat.update { it.copy(lines = it.lines + l) }
                 }
-                val user = MessageParam.builder().role(MessageParam.Role.USER).content(content).build()
-                history += user
-                db.appendParam(chat, user)
-                turn(chat)
+                if (!vault.has()) throw NoKey()
+                // Everything else goes to Athena herself (her one session), queued on the phone so he never waits to send.
+                core.mindHost.ask(chat, t, pre)
             } catch (e: Exception) {
                 _chat.update { it.copy(working = null, streaming = "", error = AthenaEngine.plainError(e)) }
-                busy = false
             }
         }
     }
@@ -542,67 +589,57 @@ class BrainHub(
     /** Hermes ran his command on the phone: his words and the result go in the transcript, and nothing goes to Athena. */
     fun hermesRan(text: String, result: String) {
         io {
-            val chat = _chat.value.chatId ?: db.newChat().also { id -> history = ArrayList(); _chat.update { it.copy(chatId = id) } }
+            val chat = _chat.value.chatId ?: db.newChat().also { id -> _chat.update { it.copy(chatId = id) } }
             val u = db.addLine(chat, LineKind.USER, text)
             val n = db.addLine(chat, LineKind.NOTE, result)
             _chat.update { it.copy(lines = it.lines + u + n) }
         }
     }
 
-    /** Runs the loop again on the history as it stands (it ends with his message or tool results). */
+    /** Sends whatever is still queued for her (a message held while she was busy or offline). */
     fun retry() {
-        val chat = _chat.value.chatId ?: return
-        if (busy || history.isEmpty() || history.last().role() != MessageParam.Role.USER) { _chat.update { it.copy(error = null) }; return }
-        busy = true
-        _chat.update { it.copy(working = "Thinking", error = null) }
-        io { turn(chat) }
+        _chat.update { it.copy(error = null) }
+        core.mindHost.deliverSoon()
     }
 
-    private fun turn(chat: Long) {
-        val sink = object : TurnSink {
-            override fun text(delta: String) { _chat.update { it.copy(streaming = it.streaming + delta, working = "Writing") } }
-            override fun assistant(text: String) {
-                // A draft he will send loses its AI-isms on screen; the API history keeps her words unchanged.
-                val shown = if (dev.phonerecall.oneiroi.Humanizer.asksForDraft(lastAsk)) dev.phonerecall.oneiroi.Humanizer.fix(text).text else text
-                val line = shown.takeIf { it.isNotBlank() }?.let { db.addLine(chat, LineKind.ATHENA, it) }
-                _chat.update { it.copy(lines = if (line != null) it.lines + line else it.lines, streaming = "") }
-            }
-            override fun appended(param: MessageParam) = db.appendParam(chat, param)
-            override fun proposal(outcome: ToolOutcome) {
-                val p = outcome.proposal ?: return
-                val line = db.addLine(chat, LineKind.PROPOSAL, p.title, p.id)
-                _chat.update { it.copy(lines = it.lines + line) }
-                reloadProposals()
-                if (outcome.decision is Decision.Done) { reloadCards(); onData() }
-            }
-            override fun working(word: String) { _chat.update { it.copy(working = word) } }
-            override fun route(line: String) {
-                val l = db.addLine(chat, LineKind.NOTE, line, delivered = true)
-                _chat.update { it.copy(lines = it.lines + l) }
-            }
+    /** How many of the newest lines the screen holds; "Show earlier" adds a page. Opening sealed lines costs, so not all at once. */
+    @Volatile private var shown = PAGE
+
+    /**
+     * One continuous history: every chat and every one of her sessions in one scroll, a thin divider where a chat began
+     * (her sessions add their own). Her replies and proposals land in the lines (MindHost writes them); re-read on each change.
+     */
+    private fun reloadChat() {
+        val rows = db.history(shown + 1)
+        val more = rows.size > shown
+        val lines = ArrayList<ChatLine>()
+        var prev: Long? = null
+        for ((chat, l) in if (more) rows.drop(1) else rows) {
+            if (prev != null && chat != prev && l.kind != LineKind.DIVIDER) lines += ChatLine(-l.id, LineKind.DIVIDER, DIVIDER_DAY.format(java.time.Instant.ofEpochMilli(l.at).atZone(ZoneId.systemDefault())), at = l.at)
+            lines += l
+            prev = chat
         }
-        try {
-            engine.run(history, _settings.value.model, chat, sink, auto = _settings.value.auto)
-            _chat.update { it.copy(working = null, streaming = "") }
-        } catch (e: Exception) {
-            _chat.update { it.copy(working = null, streaming = "", error = AthenaEngine.plainError(e)) }
-        } finally {
-            busy = false
-        }
+        _chat.update { it.copy(lines = lines, earlier = more) }
     }
+
+    fun earlier() = io { shown += PAGE; reloadChat() }
 
     fun newChat() {
-        if (busy) return
         io {
             // The chat that just ended: Oneiroi reflects on it once.
             _chat.value.chatId?.let { dev.phonerecall.oneiroi.OneiroiWork.reflect(app, it) }
             val id = db.newChat()
-            history = ArrayList()
-            _chat.value = ChatState(loaded = true, chatId = id)
+            _chat.update { it.copy(chatId = id, error = null) }
+            reloadChat()
         }
     }
 
     fun dismissError() = _chat.update { it.copy(error = null) }
+
+    private companion object {
+        const val PAGE = 300
+        val DIVIDER_DAY: java.time.format.DateTimeFormatter = java.time.format.DateTimeFormatter.ofPattern("EEE MMM d, h:mm a", java.util.Locale.US)
+    }
 
     // ---- Fates ----
 

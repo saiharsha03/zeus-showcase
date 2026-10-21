@@ -1,8 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Debug builds only (this source set is not in release). The receiver needs android.permission.DUMP, which
+<!-- Debug and fast builds only (not in release). The receiver needs android.permission.DUMP, which
      only the adb shell holds, so no app on the phone can send it commands. Read-only commands; nothing controls a device. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application>
+        <!-- StrictMode and the main-thread watchdog (Clio "ui": "main stalled N ms" with the stack). -->
+        <provider
+            android:name=".DebugInit"
+            android:authorities="${applicationId}.debuginit"
+            android:exported="false" />
+        <!-- Clio's export over adb without run-as (command in ClioExportProvider.kt). DUMP: the adb shell only. -->
+        <provider
+            android:name=".ClioExportProvider"
+            android:authorities="dev.phonerecall.clio"
+            android:exported="true"
+            android:readPermission="android.permission.DUMP"
+            android:writePermission="android.permission.DUMP" />
         <receiver
             android:name=".DebugCommandReceiver"
             android:exported="true"

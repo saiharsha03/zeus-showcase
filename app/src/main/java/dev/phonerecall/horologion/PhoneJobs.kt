@@ -19,7 +19,7 @@ object PhoneJobs {
         Spec("zeus-heartbeat", "Heartbeat", "Athena's hourly look at what changed; skipped when nothing did (on or off in Everything else)", 60, "network"),
         Spec("zeus-hygiene", "Hygiene", "Clears expired cards, proposals and old notification lines", 60, "battery not low"),
         Spec("zeus-rhythms", "Rhythms", "Learns when he opens apps and calls home", 6 * 60, "battery not low"),
-        Spec("olympia-fixtures", "Fixtures", "Refreshes his teams' matches", 12 * 60, "network"),
+        Spec("olympia-fixtures", "Fixtures", "Refreshes his teams' matches and tonight's big ones, with where to watch", 12 * 60, "network"),
         Spec("aeolia-check", "Weather", "Checks the forecast and alerts", 30, "network"),
         Spec("zeus-argo", "Argo", "Ticks his trips: leave-by, gates, the day after", 15, ""),
         Spec("zeus-odyssey-roads", "Roads", "Traffic on his usual drives", 15, "network, battery not low"),

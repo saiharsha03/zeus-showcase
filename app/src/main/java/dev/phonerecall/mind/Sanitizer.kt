@@ -13,7 +13,31 @@ import dev.phonerecall.brain.Topics
  */
 class Sanitizer(private val people: Map<String, String> = emptyMap(), private val sealed: Set<String> = emptySet()) {
 
+    /**
+     * Built once per sanitizer, not per line: one pattern for every name and one for Calypso's. Compiling ~1,400
+     * patterns for each line (every Clio line and request log goes through here) churned tens of MB a second and
+     * stalled the main thread on GCs. Longest names first, so "Amma Kumar" is replaced before "Amma".
+     */
+    private val named: List<Pair<String, String>> by lazy { people.entries.filter { it.key.length >= 2 }.sortedByDescending { it.key.length }.map { it.key to it.value } }
+    private val names: Regex? by lazy { words(named.map { it.first }) }
+    private val labels: Map<String, String> by lazy { HashMap<String, String>().also { m -> for ((n, l) in named) m.putIfAbsent(n.lowercase(), l) } }
+    private val calypso: Regex? by lazy { words(sealed.filter { it.isNotBlank() }) }
+
+    private fun words(list: List<String>): Regex? = list.takeIf { it.isNotEmpty() }?.let { w -> Regex("(?i)\\b(?:" + w.joinToString("|") { Regex.escape(it) } + ")\\b") }
+
+    /** A match's label; a name the lowercase map misses (odd case folding) still never goes out as itself. */
+    private fun label(match: String): String = labels[match.lowercase()] ?: named.firstOrNull { it.first.equals(match, true) }?.second ?: "[name]"
+
     fun clean(text: String): String = text.lineSequence().mapNotNull { line(it) }.joinToString("\n").trim()
+
+    /**
+     * His own chat words to Athena ("Athena reads all of Zeus but Calypso"): as he wrote them,
+     * names, numbers and amounts included. Only two things stay on the phone: a line naming something sealed in Calypso,
+     * and a line on an off-limits topic (health, immigration, dating). Third-party text he quotes is defused by the caller.
+     */
+    fun chat(text: String): String = text.lineSequence().filter { l ->
+        calypso?.containsMatchIn(l) != true && Topics.of(l).none { it == Topic.HEALTH || it == Topic.IMMIGRATION || it == Topic.DATING }
+    }.joinToString("\n").trim()
 
     /** A JSON tool result: every string value cleaned on its own; a dropped one becomes "[withheld]". Not JSON: clean(). */
     fun json(text: String): String {
@@ -31,7 +55,7 @@ class Sanitizer(private val people: Map<String, String> = emptyMap(), private va
     /** One line, cleaned, or null when the whole line must go. */
     fun line(raw: String): String? {
         var s = raw
-        if (sealed.any { it.isNotBlank() && Regex("(?i)\\b${Regex.escape(it)}\\b").containsMatchIn(s) }) return null
+        if (calypso?.containsMatchIn(s) == true) return null
         val topics = Topics.of(s)
         if (Topic.HEALTH in topics || Topic.IMMIGRATION in topics || Topic.DATING in topics) return null
         if (TRAIL.containsMatchIn(s)) return null
@@ -41,11 +65,7 @@ class Sanitizer(private val people: Map<String, String> = emptyMap(), private va
         s = COORD.replace(s, "[place]")
         s = PHONE.replace(s, "[number]")
         s = ADDRESS.replace(s, "[address]")
-        // Longest names first, so "Amma Rao" is replaced before "Amma".
-        for ((name, label) in people.entries.sortedByDescending { it.key.length }) {
-            if (name.length < 2) continue
-            s = Regex("(?i)\\b${Regex.escape(name)}\\b").replace(s, label)
-        }
+        names?.let { r -> s = r.replace(s) { label(it.value) } }
         return s.takeIf { it.isNotBlank() }
     }
 

@@ -69,6 +69,9 @@ data class PlaceGuess(
     val open: Boolean get() = state == "ask" || state == "auto"
 }
 
+/** One of his Places pins entered or left (its geofence), so the timeline shows it even with no drive. Kept two weeks. */
+data class PinEvent(val at: Long = 0, val name: String = "", val kind: Kind? = null, val left: Boolean = false)
+
 /** A geofence arrival at Home or the office, and when he left. Kept two weeks. */
 data class Arrival(val placeId: String = "", val kind: Kind = Kind.OTHER, val at: Long = 0, val left: Long? = null)
 
@@ -202,6 +205,7 @@ data class OdysseyData(
     val car: CarData = CarData(),
     val guesses: List<PlaceGuess> = emptyList(),
     val arrivals: List<Arrival> = emptyList(),
+    val pinEvents: List<PinEvent> = emptyList(),
 ) {
     fun shape(from: String?, to: String?): RouteShape? = shapes.firstOrNull { it.key == "$from>$to" }
 

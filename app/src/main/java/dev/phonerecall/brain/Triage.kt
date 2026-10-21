@@ -28,7 +28,13 @@ data class Verdict(
 object Rules {
     private fun up(i: Importance) = Importance.entries[(i.ordinal - 1).coerceAtLeast(0)]
 
-    fun triage(kind: AppKind, who: Who?, person: Person?, cues: Cues, isGroup: Boolean): Verdict {
+    /** The rules, then his own word on whole kinds of app (the fresh start's "always matter"): never below medium. */
+    fun triage(kind: AppKind, who: Who?, person: Person?, cues: Cues, isGroup: Boolean): Verdict =
+        rules(kind, who, person, cues, isGroup).let { v ->
+            if (dev.phonerecall.fresh.SenseRules.matters(kind) && v.importance > Importance.MEDIUM && v.kind != NoteKind.PROMO && person?.tier != Tier.MUTED) v.copy(importance = Importance.MEDIUM, reason = v.reason + ", always matters") else v
+        }
+
+    private fun rules(kind: AppKind, who: Who?, person: Person?, cues: Cues, isGroup: Boolean): Verdict {
         val tier = person?.tier
         if (who?.missedCall == true) {
             val i = when (tier) { Tier.REPLY_NOW -> Importance.HIGH; Tier.MUTED -> Importance.LOW; else -> Importance.MEDIUM }

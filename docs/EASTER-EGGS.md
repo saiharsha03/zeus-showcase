@@ -11,9 +11,9 @@ Art: existing assets and vector icons only (the Athena profile, the Metis coin, 
 | 2 | Olympus | Open Zeus between 3 and 4 AM | Subtitle: "The owls are judging you." |
 | 3 | Themis, About | Long-press the Zeus coin | It flips to Athena's profile with "Know thyself" or "Nothing in excess" in Greek |
 | 4 | Themis | Long-press the "Plain names" row | Hidden alternate subtitles: Homeric-style epithets ("Many-ridged, snowy Olympus", "Laughter-loving, golden Venus"). Long-press again to go back. A normal tap still toggles Plain names |
-| 5 | Delphi (empty) | Long-press Athena's profile | One of Athena's own lines under her, a new one each press ("The owl of Minerva flies only at dusk...", "Strategy beats strength. Ask Ares how that went.") |
-| 6 | Delphi | Send exactly "Who are you?" | The oracle answers in a riddle, on the phone, no model call. Once ever |
-| 7 | Delphi | "Ask Annabeth ..." | A Zeus note: "Wise Girl has a plan. She always has a plan." (PJO). The request still goes to Annabeth |
+| 5 | Athena chat (empty) | Long-press Athena's profile | One of Athena's own lines under her, a new one each press ("The owl of Minerva flies only at dusk...", "Strategy beats strength. Ask Ares how that went.") |
+| 6 | Athena chat | Send exactly "Who are you?" | The oracle answers in a riddle, on the phone, no model call. Once ever |
+| 7 | Athena chat | "Ask Annabeth ..." | A Zeus note: "Wise Girl has a plan. She always has a plan." (PJO). The request still goes to Annabeth |
 | 8 | Pantheon | Tap Metis's coin 3 times quickly | Her line becomes "Zeus swallowed her whole. She has advised him from the inside ever since." for 6 s |
 | 9 | Chronos | Swipe up, up, down, down on the header | The kicker shows today in Attic numerals ("ΔΠΙΙΙΙ October ΧΧΔΔΠΙ") for the rest of the day; repeat to turn off |
 | 10 | Chronos | the owner's birthday | A small laurel beside "Today" in the header |

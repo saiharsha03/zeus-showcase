@@ -9,9 +9,10 @@ import com.anthropic.core.jsonMapper
 import com.anthropic.models.messages.MessageParam
 import com.fasterxml.jackson.core.type.TypeReference
 
-/** One line in Delphi's transcript. A PROPOSAL line points at a proposal and draws its Fates card. */
+/** One line in his transcript with Athena (one continuous history across chats and sessions). A PROPOSAL line points at a proposal and draws its Fates card. */
 /** MEMORY: a /memory answer card (Oneiroi), its text the encoded answer. */
-enum class LineKind { USER, ATHENA, NOTE, PROPOSAL, ERROR, MEMORY }
+/** DIVIDER: a thin rule where one of her daily sessions began, its text the day. */
+enum class LineKind { USER, ATHENA, NOTE, PROPOSAL, ERROR, MEMORY, DIVIDER }
 
 @Immutable
 data class ChatLine(val id: Long, val kind: LineKind, val text: String, val proposalId: Long? = null, val at: Long = 0)
@@ -25,10 +26,12 @@ data class ChatLine(val id: Long, val kind: LineKind, val text: String, val prop
 data class Reminder(val id: Long, val at: Long, val text: String)
 
 /**
- * brain.db: proposals, the audit log, Delphi's chats and the things confirmed proposals made
- * (reminders, cards). Local only, excluded from backup. Every method does IO; call on Dispatchers.IO.
+ * brain.db: proposals, the audit log, his transcripts with Athena and the things confirmed proposals made
+ * (reminders, cards). Local only, excluded from Android's backup (Mnemosyne carries it, opening and resealing the
+ * transcript under "zeus.aegis.chat"). Transcript text and the old API history are sealed with a Keystore key: a
+ * copied database shows no words. Every method does IO; call on Dispatchers.IO.
  */
-class BrainDb(context: Context) : SQLiteOpenHelper(context, "brain.db", null, 2), ProposalStore, FatesMeter {
+class BrainDb(context: Context, private val sealer: Sealer = KeystoreSealer(CHAT_ALIAS)) : SQLiteOpenHelper(context, "brain.db", null, 3), ProposalStore, FatesMeter {
     private val json = jsonMapper()
 
     override fun onCreate(db: SQLiteDatabase) {
@@ -48,6 +51,7 @@ class BrainDb(context: Context) : SQLiteOpenHelper(context, "brain.db", null, 2)
         db.execSQL("CREATE TABLE reminders (id INTEGER PRIMARY KEY AUTOINCREMENT, at INTEGER NOT NULL, text TEXT NOT NULL, fired INTEGER NOT NULL DEFAULT 0)")
         db.execSQL("CREATE TABLE cards (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, body TEXT NOT NULL, created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL)")
         v2(db)
+        v3(db)
     }
 
     /** Version 2: the fatigue meter's events and the outbound log (host, purpose, field kinds; never content). */
@@ -58,7 +62,35 @@ class BrainDb(context: Context) : SQLiteOpenHelper(context, "brain.db", null, 2)
         db.execSQL("CREATE INDEX IF NOT EXISTS outbound_at ON outbound (at)")
     }
 
-    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) { if (oldVersion < 2) v2(db) }
+    /** Version 3: transcripts sealed. A `sealed` flag per row; the rows written before are sealed once, here. */
+    private fun v3(db: SQLiteDatabase) {
+        for (t in listOf("chat_lines", "chat_params")) {
+            val has = db.rawQuery("PRAGMA table_info($t)", null).use { c -> generateSequence { if (c.moveToNext()) c.getString(1) else null }.any { it == "sealed" } }
+            if (!has) db.execSQL("ALTER TABLE $t ADD COLUMN sealed INTEGER NOT NULL DEFAULT 0")
+        }
+        sealPlain(db)
+    }
+
+    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) { if (oldVersion < 2) v2(db); if (oldVersion < 3) v3(db) }
+
+    /** Seals every transcript row still in plain text (the one-time migration; safe to run again). Returns rows sealed. */
+    fun sealPlain(db: SQLiteDatabase = writableDatabase): Int {
+        var n = 0
+        db.beginTransaction()
+        try {
+            db.rawQuery("SELECT id, text FROM chat_lines WHERE sealed = 0", null).use { c ->
+                while (c.moveToNext()) { db.execSQL("UPDATE chat_lines SET text = ?, sealed = 1 WHERE id = ?", arrayOf<Any>(sealer.seal(c.getString(1)), c.getLong(0))); n++ }
+            }
+            db.rawQuery("SELECT chat_id, seq, json FROM chat_params WHERE sealed = 0", null).use { c ->
+                while (c.moveToNext()) { db.execSQL("UPDATE chat_params SET json = ?, sealed = 1 WHERE chat_id = ? AND seq = ?", arrayOf<Any>(sealer.seal(c.getString(2)), c.getLong(0), c.getLong(1))); n++ }
+            }
+            db.setTransactionSuccessful()
+        } finally { db.endTransaction() }
+        return n
+    }
+
+    /** A transcript value as stored: opened when sealed (a row the key can't open reads as a marker, never as ciphertext). */
+    private fun opened(v: String, sealed: Boolean): String = if (!sealed) v else sealer.open(v) ?: UNREADABLE
 
     // ---- the fatigue meter ----
 
@@ -181,13 +213,13 @@ class BrainDb(context: Context) : SQLiteOpenHelper(context, "brain.db", null, 2)
     fun appendParam(chat: Long, p: MessageParam) {
         val db = writableDatabase
         val seq = db.rawQuery("SELECT COALESCE(MAX(seq), -1) + 1 FROM chat_params WHERE chat_id = ?", arrayOf(chat.toString())).use { it.moveToFirst(); it.getLong(0) }
-        db.insert("chat_params", null, ContentValues().apply { put("chat_id", chat); put("seq", seq); put("json", json.writeValueAsString(p)) })
+        db.insert("chat_params", null, ContentValues().apply { put("chat_id", chat); put("seq", seq); put("json", sealer.seal(json.writeValueAsString(p))); put("sealed", 1) })
     }
 
     fun params(chat: Long): MutableList<MessageParam> {
         val out = ArrayList<MessageParam>()
-        readableDatabase.rawQuery("SELECT json FROM chat_params WHERE chat_id = ? ORDER BY seq", arrayOf(chat.toString())).use { c ->
-            while (c.moveToNext()) runCatching { json.readValue(c.getString(0), MessageParam::class.java) }.getOrNull()?.let { out += it }
+        readableDatabase.rawQuery("SELECT json, sealed FROM chat_params WHERE chat_id = ? ORDER BY seq", arrayOf(chat.toString())).use { c ->
+            while (c.moveToNext()) runCatching { json.readValue(opened(c.getString(0), c.getInt(1) == 1), MessageParam::class.java) }.getOrNull()?.let { out += it }
         }
         return out
     }
@@ -195,7 +227,7 @@ class BrainDb(context: Context) : SQLiteOpenHelper(context, "brain.db", null, 2)
     fun addLine(chat: Long, kind: LineKind, text: String, proposalId: Long? = null, delivered: Boolean = true): ChatLine {
         val at = System.currentTimeMillis()
         val id = writableDatabase.insert("chat_lines", null, ContentValues().apply {
-            put("chat_id", chat); put("at", at); put("kind", kind.name); put("text", text); put("delivered", if (delivered) 1 else 0)
+            put("chat_id", chat); put("at", at); put("kind", kind.name); put("text", sealer.seal(text)); put("sealed", 1); put("delivered", if (delivered) 1 else 0)
             if (proposalId != null) put("proposal_id", proposalId) else putNull("proposal_id")
         })
         return ChatLine(id, kind, text, proposalId, at)
@@ -203,21 +235,39 @@ class BrainDb(context: Context) : SQLiteOpenHelper(context, "brain.db", null, 2)
 
     fun lines(chat: Long): List<ChatLine> {
         val out = ArrayList<ChatLine>()
-        readableDatabase.rawQuery("SELECT id, kind, text, proposal_id, at FROM chat_lines WHERE chat_id = ? ORDER BY id", arrayOf(chat.toString())).use { c ->
+        readableDatabase.rawQuery("SELECT id, kind, text, proposal_id, at, sealed FROM chat_lines WHERE chat_id = ? ORDER BY id", arrayOf(chat.toString())).use { c ->
             while (c.moveToNext()) out += ChatLine(
-                c.getLong(0), runCatching { LineKind.valueOf(c.getString(1)) }.getOrDefault(LineKind.NOTE), c.getString(2),
+                c.getLong(0), runCatching { LineKind.valueOf(c.getString(1)) }.getOrDefault(LineKind.NOTE), opened(c.getString(2), c.getInt(5) == 1),
                 if (c.isNull(3)) null else c.getLong(3), c.getLong(4),
             )
         }
         return out
     }
 
+    /**
+     * The one continuous history: every chat's lines, the newest [limit] before [beforeId] (null: the latest), oldest
+     * first, each with its chat id so the screen can draw a thin divider where a chat began.
+     */
+    fun history(limit: Int, beforeId: Long? = null): List<Pair<Long, ChatLine>> {
+        val out = ArrayList<Pair<Long, ChatLine>>()
+        readableDatabase.rawQuery(
+            "SELECT chat_id, id, kind, text, proposal_id, at, sealed FROM chat_lines WHERE id < ? ORDER BY id DESC LIMIT ?",
+            arrayOf((beforeId ?: Long.MAX_VALUE).toString(), limit.toString()),
+        ).use { c ->
+            while (c.moveToNext()) out += c.getLong(0) to ChatLine(
+                c.getLong(1), runCatching { LineKind.valueOf(c.getString(2)) }.getOrDefault(LineKind.NOTE), opened(c.getString(3), c.getInt(6) == 1),
+                if (c.isNull(4)) null else c.getLong(4), c.getLong(5),
+            )
+        }
+        return out.asReversed()
+    }
+
     /** Every chat's lines since `since`, with their chat id (Oneiroi's subconscious sweep). */
     fun linesSince(since: Long): List<Pair<Long, ChatLine>> {
         val out = ArrayList<Pair<Long, ChatLine>>()
-        readableDatabase.rawQuery("SELECT chat_id, id, kind, text, proposal_id, at FROM chat_lines WHERE at >= ? ORDER BY id", arrayOf(since.toString())).use { c ->
+        readableDatabase.rawQuery("SELECT chat_id, id, kind, text, proposal_id, at, sealed FROM chat_lines WHERE at >= ? ORDER BY id", arrayOf(since.toString())).use { c ->
             while (c.moveToNext()) out += c.getLong(0) to ChatLine(
-                c.getLong(1), runCatching { LineKind.valueOf(c.getString(2)) }.getOrDefault(LineKind.NOTE), c.getString(3),
+                c.getLong(1), runCatching { LineKind.valueOf(c.getString(2)) }.getOrDefault(LineKind.NOTE), opened(c.getString(3), c.getInt(6) == 1),
                 if (c.isNull(4)) null else c.getLong(4), c.getLong(5),
             )
         }
@@ -228,8 +278,8 @@ class BrainDb(context: Context) : SQLiteOpenHelper(context, "brain.db", null, 2)
     fun takeNotes(chat: Long): List<String> {
         val db = writableDatabase
         val out = ArrayList<String>()
-        db.rawQuery("SELECT text FROM chat_lines WHERE chat_id = ? AND kind = 'NOTE' AND delivered = 0 ORDER BY id", arrayOf(chat.toString())).use { c ->
-            while (c.moveToNext()) out += c.getString(0)
+        db.rawQuery("SELECT text, sealed FROM chat_lines WHERE chat_id = ? AND kind = 'NOTE' AND delivered = 0 ORDER BY id", arrayOf(chat.toString())).use { c ->
+            while (c.moveToNext()) out += opened(c.getString(0), c.getInt(1) == 1)
         }
         db.execSQL("UPDATE chat_lines SET delivered = 1 WHERE chat_id = ? AND kind = 'NOTE'", arrayOf<Any>(chat))
         return out
@@ -261,5 +311,11 @@ class BrainDb(context: Context) : SQLiteOpenHelper(context, "brain.db", null, 2)
             while (c.moveToNext()) out += BrainCard(c.getLong(0), c.getString(1), c.getString(2), c.getLong(3), c.getLong(4))
         }
         return out
+    }
+
+    companion object {
+        /** The transcript's own Keystore key (Mnemosyne opens every "zeus.aegis.*" key for a backup). */
+        const val CHAT_ALIAS = "zeus.aegis.chat"
+        const val UNREADABLE = "[this line can't be opened on this phone]"
     }
 }

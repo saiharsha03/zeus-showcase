@@ -237,6 +237,8 @@ class GoogleCalendarAuth(private val context: Context) : CalendarAuth {
 
         /** The card's "Allow Google Calendar": Google's consent sheet when it is needed ([resolve]), then [done]. Main thread. */
         fun ask(context: Context, resolve: (IntentSender) -> Unit, done: () -> Unit) {
+            // Google mails a security alert for this consent; Zeus remembers it asked, so the alert can say so.
+            dev.phonerecall.brain.ConsentLog.record(context, dev.phonerecall.brain.Consent.GOOGLE_CALENDAR)
             Identity.getAuthorizationClient(context).authorize(request())
                 .addOnSuccessListener { r -> val s = r.pendingIntent?.intentSender; if (r.hasResolution() && s != null) resolve(s) else done() }
                 .addOnFailureListener { e -> Clio.warn("chronos", "google calendar consent failed", e.javaClass.simpleName); done() }

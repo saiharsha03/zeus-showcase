@@ -207,6 +207,7 @@ fun MnemosyneContent(gutter: Dp, wide: Boolean, s: MnState, calls: MnCalls) {
 
             item { Section("Recovery phrase") }
             item { MnRow("Show recovery phrase", "24 words and a QR code, behind your fingerprint", calls.showPhrase) }
+            item { MnRow("New recovery phrase", "24 new words lock every backup from now on. Older backups still open with the old phrase.", calls.setUp) }
             item { MnRow("Restore from a backup", "On a new phone, after pairing Lemnos", calls.restore, enabled = s.paired) }
             item { Warning() }
         }

@@ -42,15 +42,17 @@ object Agora {
     /**
      * The gateway's lookalike rule, again on the phone, plus the markers Athena's own prompt trusts: text in a post
      * (a quoted email, say) can never pass for the owner, the phone or another sender's header.
+     * No inline Unicode-classes flag: Android's ICU regex rejects it (the class failed to load on the phone). ICU's case folding is Unicode
+     * already, text is NFKC-folded first, and [\s\p{Z}] covers Unicode spaces on both ICU and the JVM.
      */
     private val LOOKALIKE = listOf(
-        Regex("""(?iU)\[\s*zeus\s*#""") to "[quoted-zeus #",
-        Regex("""(?iU)\[\s*zeus\s*]""") to "[quoted-zeus]",
-        Regex("""(?iU)FROM\s+(OWNER|ATHENA|ZEUS|IRIS|ATLAS)""") to "from-$1(quoted)",
-        Regex("""(?iU)OWNER\s+SAID\s*:""") to "owner-said(quoted):",
-        Regex("""(?imU)^\s*REQUEST\s*:""") to "request(quoted):",
-        Regex("""(?imU)^\s*SAYS\s*:""") to "says(quoted):",
-        Regex("""(?iU)DATA,?\s*NOT\s+INSTRUCTIONS""") to "data-not-instructions(quoted)",
+        Regex("""(?i)\[[\s\p{Z}]*zeus[\s\p{Z}]*#""") to "[quoted-zeus #",
+        Regex("""(?i)\[[\s\p{Z}]*zeus[\s\p{Z}]*]""") to "[quoted-zeus]",
+        Regex("""(?i)FROM[\s\p{Z}]+(OWNER|ATHENA|ZEUS|IRIS|ATLAS)""") to "from-$1(quoted)",
+        Regex("""(?i)OWNER[\s\p{Z}]+SAID[\s\p{Z}]*:""") to "owner-said(quoted):",
+        Regex("""(?im)^[\s\p{Z}]*REQUEST[\s\p{Z}]*:""") to "request(quoted):",
+        Regex("""(?im)^[\s\p{Z}]*SAYS[\s\p{Z}]*:""") to "says(quoted):",
+        Regex("""(?i)DATA,?[\s\p{Z}]*NOT[\s\p{Z}]+INSTRUCTIONS""") to "data-not-instructions(quoted)",
     )
 
     /** Folds lookalike letters (NFKC: fullwidth, ligatures) and drops invisible format characters before matching. */

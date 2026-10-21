@@ -265,6 +265,8 @@ class LemnosHub private constructor(private val app: Context) {
             runCatching { core.mindHost.offer(n) }
             runCatching { core.audit.log(who(m.sender), "Agora → Athena", m.text.take(120)) }
         }
+        // Iris's street parking rule, offered once on Kairos (qol/StreetParking).
+        for (m in got) if (m.sender == "iris") runCatching { dev.phonerecall.qol.StreetParking.fromIris(app, m.text) }
         prefs.edit().putLong("agora.after", Agora.cursor(after, got)).apply()
         got.forEach(::merge)
         return notes.size

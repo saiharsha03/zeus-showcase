@@ -12,6 +12,8 @@ import android.location.LocationManager
 import android.net.Uri
 import android.view.HapticFeedbackConstants
 import android.view.ViewGroup
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import android.webkit.CookieManager
 import android.webkit.JavascriptInterface
 import android.webkit.WebResourceRequest
@@ -149,9 +151,24 @@ class AeoliaHost private constructor(private val app: Context) {
         settings.cacheMode = WebSettings.LOAD_NO_CACHE
         CookieManager.getInstance().setAcceptThirdPartyCookies(this, false)
         addJavascriptInterface(Bridge(), "Weather")
+        ViewCompat.setOnApplyWindowInsetsListener(this) { v, i -> pushInsets(v as WebView); i }
+        addOnLayoutChangeListener { v, _, _, _, _, _, _, _, _ -> pushInsets(v as WebView) }
         webViewClient = Client()
         loadUrl(AeoliaRoutes.PAGE)
     }
+
+    /** The system-bar and cutout overlap with the WebView's own bounds, in CSS px, as --inset-* on the page. */
+    private fun pushInsets(w: WebView) {
+        val i = ViewCompat.getRootWindowInsets(w)?.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()) ?: return
+        val root = w.rootView
+        val at = IntArray(2).also { w.getLocationInWindow(it) }
+        val d = w.resources.displayMetrics.density
+        fun px(v: Int) = (maxOf(0, v) / d).let { "${it}px" }
+        val js = "(function(s){s.setProperty('--inset-top','${px(i.top - at[1])}');s.setProperty('--inset-bottom','${px(i.bottom - (root.height - at[1] - w.height))}');" +
+            "s.setProperty('--inset-left','${px(i.left - at[0])}');s.setProperty('--inset-right','${px(i.right - (root.width - at[0] - w.width))}')})(document.documentElement.style)"
+        if (js != lastInsets) { lastInsets = js; w.post { if (trusted) w.evaluateJavascript(js, null) } }
+    }
+    @Volatile private var lastInsets = ""
 
     private inner class Client : WebViewClient() {
         override fun shouldInterceptRequest(view: WebView, r: WebResourceRequest): WebResourceResponse {
@@ -182,7 +199,8 @@ class AeoliaHost private constructor(private val app: Context) {
         override fun doUpdateVisitedHistory(view: WebView, url: String, isReload: Boolean) { trusted = AeoliaRoutes.isPage(url) }
         override fun onPageFinished(view: WebView, url: String) {
             trusted = AeoliaRoutes.isPage(url)
-            if (trusted) view.evaluateJavascript("window.applyZeus&&applyZeus($theme)", null)
+            lastInsets = ""
+            if (trusted) { view.evaluateJavascript("window.applyZeus&&applyZeus($theme)", null); pushInsets(view) }
         }
     }
 

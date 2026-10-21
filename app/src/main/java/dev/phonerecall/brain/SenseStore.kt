@@ -111,6 +111,12 @@ class SenseStore(context: Context, private val sealer: Sealer, name: String? = "
         if (oldVersion < 2) db.execSQL("ALTER TABLE people ADD COLUMN zone TEXT")
     }
 
+    /** Every sealed column, rewritten once into the sealer's current format (envelopes). People first: the hot path. */
+    fun reseal(): Int = writableDatabase.let { db ->
+        db.reseal(sealer, "people", listOf("name")) + db.reseal(sealer, "cards", listOf("title", "body")) +
+            db.reseal(sealer, "wishes", listOf("name")) + db.reseal(sealer, "notes", listOf("summary", "raw", "cloud"))
+    }
+
     private fun sealOrNull(s: String?) = s?.let { sealer.seal(it) }
     private fun openOrNull(s: String?) = s?.let { sealer.open(it) }
     private fun Cursor.str(i: Int): String? = if (isNull(i)) null else getString(i)
@@ -193,6 +199,11 @@ class SenseStore(context: Context, private val sealer: Sealer, name: String? = "
     fun person(key: String): Person? = readableDatabase.rawQuery("SELECT $personCols FROM people WHERE key = ?", arrayOf(key)).use { if (it.moveToFirst()) it.person() else null }
 
     fun people(): List<Person> = readableDatabase.rawQuery("SELECT $personCols FROM people", null).use { c ->
+        val out = ArrayList<Person>(); while (c.moveToNext()) out += c.person(); out
+    }
+
+    /** Only people with a relation set: a few rows to open, not the whole book (each name is a Keystore decrypt). */
+    fun related(): List<Person> = readableDatabase.rawQuery("SELECT $personCols FROM people WHERE relation IS NOT NULL", null).use { c ->
         val out = ArrayList<Person>(); while (c.moveToNext()) out += c.person(); out
     }
 

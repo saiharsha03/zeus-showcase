@@ -116,7 +116,7 @@ object Inquiries {
     /** The brief for Athena's circle when the mind is set up. */
     fun brief(q: Inquiry): String =
         "Find out whether the owner is planning a trip. Investigation ${q.id}. Hint (weak): ${q.hint}. " +
-            "Use ask_worker (worker iris, topic trip) with a read-only question, search_memory (past Delphi chats, notes, documents), read_calendar and read_trips. " +
+            "Use ask_worker (worker iris, topic trip) with a read-only question, search_memory (past chats with him, notes, documents), read_calendar and read_trips. " +
             "Then call record_trip_finding once with investigation_id ${q.id}, the city, when (dates or a month), your confidence (high only if a booking or Iris confirms it) and the evidence in words. " +
             "Never book or ask anyone to book; never put amounts, addresses or coordinates in a question."
 

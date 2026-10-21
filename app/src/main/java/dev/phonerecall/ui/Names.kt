@@ -10,7 +10,7 @@ import androidx.compose.runtime.staticCompositionLocalOf
  */
 enum class Place(val plain: String, val myth: String, val motto: String) {
     HOME("Home", "Olympus", "Where the day gathers"),
-    ORACLE("Ask Athena", "Delphi", "Ask the oracle"),
+    ORACLE("Ask Athena", "Athena", "Ask her anything, any time"),
     CALENDAR("Calendar", "Chronos", "The wheel of time turns"),
     TASKS("Tasks", "Praxis", "Things done, one step at a time"),
     CLOSET("Closet", "Venus", "Dressed for the day"),
@@ -46,6 +46,7 @@ enum class Place(val plain: String, val myth: String, val motto: String) {
     AGORA("Agent room", "Agora", "Where the agents meet"),
     HOROLOGION("Schedules", "Horologion", "Every job and its hour"),
     SETUP("Setup", "Telete", "Everything Zeus needs, and a test for each"),
+    START("Getting started", "Genesis", "Where everything begins"),
 }
 
 const val APP_NAME = "Zeus"

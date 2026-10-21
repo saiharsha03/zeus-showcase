@@ -67,7 +67,19 @@ enum class ProposalKind(val wire: String, val tier: Int, val autoEligible: Boole
     SET_TRIPS("set_trips", 2, false, "Trips", modelTool = false),
     /** One feature's model (models/Models.kt): the card Athena posts when a newer or cheaper model is out.
      *  Made by plain code only (her sync); confirming asks for his fingerprint; Undo puts the old model back. */
-    SWITCH_MODEL("switch_model", 3, false, "Model for a feature", modelTool = false);
+    SWITCH_MODEL("switch_model", 3, false, "Model for a feature", modelTool = false),
+    /** A spawned task (mind/Tasks.kt) may spend more than its 25 cents. Made by plain code only (her spawn_task); it spends money, so it is never automatic. */
+    TASK_BUDGET("task_budget", 3, false, "A task's budget", modelTool = false),
+    /** "You usually ... Want me to do it for you?" (shortcuts/): Yes makes a learned shortcut, Undo removes it. Made by the phone's pattern pass only. */
+    LEARN_SHORTCUT("learn_shortcut", 2, false, "Learned shortcut", modelTool = false),
+    /** A home routine (hestia/Routines.kt) Athena drafted from his words, or a change to or deletion of one. Her
+     *  propose_routine makes it; his Confirm makes it live; Undo puts the old one back. Never automatic. */
+    SET_ROUTINE("set_routine", 2, false, "Home routine", modelTool = false),
+    /** One of Athena's ideas from his week: a rule (becomes a learned shortcut) or a code change (a drafted Prometheus request he sends). */
+    IDEA("idea", 2, false, "An idea from Athena", modelTool = false),
+    /** A change to Zeus that Prometheus assessed as feasible (prometheus/Assess.kt). Made by plain code only, never
+     *  automatic; Confirm sends the normal build request, and merge and release still take his fingerprint. */
+    BUILD_APP("build_app", 3, false, "Build an app change", modelTool = false);
 
     companion object {
         fun of(wire: String): ProposalKind? = entries.firstOrNull { it.wire == wire }
@@ -199,8 +211,59 @@ object Validate {
                 Check.Ok(Step(kind, p, trips))
             }
             ProposalKind.SWITCH_MODEL -> switchModel(raw)
+            ProposalKind.SET_ROUTINE -> {
+                val home = state.home() ?: throw Invalid("Hestia isn't set up")
+                val sentence = text(raw, "sentence", 400)!!
+                val delete = text(raw, "delete", 40, required = false)
+                if (delete != null) Check.Ok(Step(kind, mapOf("delete" to delete, "sentence" to sentence), sentence))
+                else {
+                    val json = raw["routine"] ?: throw Invalid("routine is missing")
+                    val r = runCatching { dev.phonerecall.mind.stateJson.readValue(json, dev.phonerecall.hestia.Routine::class.java) }.getOrNull() ?: throw Invalid("Not a routine")
+                    dev.phonerecall.hestia.RoutineSpec.recheck(r, home, emptySet())?.let { throw Invalid(it) }
+                    Check.Ok(Step(kind, mapOf("routine" to json, "sentence" to sentence), sentence))
+                }
+            }
+            ProposalKind.LEARN_SHORTCUT -> {
+                val trigger = text(raw, "trigger", 120)!!
+                val action = text(raw, "action", 160)!!
+                if (!dev.phonerecall.shortcuts.Learn.allowed(action)) throw Invalid("A shortcut never sends a message or pays; those stay one tap for you")
+                val p = raw.filterKeys { it.startsWith("a.") }.mapValues { it.value.take(200) } + mapOf(
+                    "trigger" to trigger, "action" to action,
+                    "trigger_label" to (text(raw, "trigger_label", 80, required = false) ?: trigger), "action_label" to (text(raw, "action_label", 80, required = false) ?: action),
+                )
+                Check.Ok(Step(kind, p + (text(raw, "why", 140, required = false)?.let { mapOf("why" to it) } ?: emptyMap()), "${p["action_label"]} when ${p["trigger_label"]}"))
+            }
+            ProposalKind.IDEA -> {
+                val title = text(raw, "title", 80)!!
+                val why = text(raw, "why", 160)!!
+                val action = text(raw, "action", 160, required = false)
+                val p = linkedMapOf("title" to title, "why" to why)
+                if (action != null) {
+                    if (!dev.phonerecall.shortcuts.Learn.allowed(action)) throw Invalid("An idea never sends a message or pays on its own")
+                    p["action"] = action; p["trigger"] = text(raw, "trigger", 120)!!
+                    p["trigger_label"] = text(raw, "trigger_label", 80, required = false) ?: p.getValue("trigger"); p["action_label"] = text(raw, "action_label", 80, required = false) ?: action
+                } else { p["problem"] = text(raw, "problem", 800)!!; p["acceptance"] = text(raw, "acceptance", 400)!! }
+                Check.Ok(Step(kind, p, title))
+            }
+            ProposalKind.TASK_BUDGET -> {
+                val task = text(raw, "task", 20)!!.also { if (!it.matches(Regex("task-[a-f0-9]{1,12}"))) throw Invalid("Not a task") }
+                val cents = int(raw, "cents", 26..dev.phonerecall.mind.Tasks.MAX_CENTS.toInt())
+                val title = text(raw, "title", 80, required = false) ?: task
+                Check.Ok(Step(kind, mapOf("task" to task, "cents" to "$cents", "title" to title), "$title: up to $cents cents"))
+            }
+            ProposalKind.BUILD_APP -> build(raw)
         }
     } catch (e: Invalid) { Check.Bad(e.message ?: "Invalid") }
+
+    /** Prometheus's assessment as a Build card: only a feasible (yes or partly) one, with its approach shown. */
+    private fun build(raw: Map<String, String>): Check {
+        val id = text(raw, "assessment", 40)!!.also { if (!it.matches(Regex("a[0-9a-f]{12}"))) throw Invalid("Not a Prometheus assessment") }
+        val feasible = text(raw, "feasible", 10)!!.also { if (it != "yes" && it != "partly") throw Invalid("Prometheus didn't find it feasible") }
+        val title = text(raw, "title", 80)!!
+        val p = linkedMapOf("assessment" to id, "title" to title, "need" to text(raw, "need", 1200)!!, "feasible" to feasible)
+        for ((k, max) in listOf("approach" to 600, "files" to 400, "risk" to 300, "needs" to 300, "done_when" to 400)) text(raw, k, max, required = false)?.let { p[k] = it }
+        return Check.Ok(Step(ProposalKind.BUILD_APP, p, "Build: $title"))
+    }
 
     /** One of Athena's own schedules, checked against the ones that exist (cron, name, the cap of 12). */
     private fun schedule(raw: Map<String, String>, state: LocalState): Check {
@@ -563,7 +626,9 @@ object Validate {
             ProposalKind.PLACE_CALL -> now + 30 * 60_000L
             ProposalKind.ADD_AUTO_APPROVE -> now + 7 * 86_400_000L
             ProposalKind.SET_SCHEDULE, ProposalKind.SET_TRIPS -> now + 3 * 86_400_000L
-            ProposalKind.SWITCH_MODEL -> now + 7 * 86_400_000L
+            ProposalKind.SWITCH_MODEL, ProposalKind.BUILD_APP -> now + 7 * 86_400_000L
+            // A task paused at its budget waits a day for this answer (Tasks.BUDGET_WAIT_MS).
+            ProposalKind.TASK_BUDGET -> now + 24 * 3_600_000L
             else -> now + 24 * 3_600_000L
         }
     }
@@ -641,9 +706,31 @@ object Validate {
                 "Switch to" to p["model"]!!, p["why"]?.let { "Why" to it },
                 "Then" to "Agents get a new version on Athena's next sync; other features use it on their next call. Undo puts the old one back.",
             )
+            ProposalKind.BUILD_APP -> listOfNotNull(
+                "Build" to p["title"]!!, "Need" to p["need"]!!, "Feasible" to p["feasible"]!!,
+                p["approach"]?.let { "Approach" to it }, p["files"]?.let { "Files" to it }, p["risk"]?.let { "Risk" to it },
+                p["needs"]?.let { "Needs you" to it }, p["done_when"]?.let { "Done when" to it },
+                "Then" to "Prometheus builds it on a branch and opens a PR (up to $${dev.phonerecall.prometheus.Forge.BUDGET_CENTS / 100}). Merge and release still need your fingerprint.",
+            )
             ProposalKind.SET_TRIPS -> listOfNotNull(
                 "Trips" to p["trips"]!!.removePrefix("Trips: "), p["why"]?.let { "Why" to it },
                 "Then" to "Argo keeps these trips. Later bookings join them; one that doesn't fit asks you first.",
+            )
+            ProposalKind.IDEA -> listOfNotNull(
+                "Idea" to p["title"]!!, "Why" to p["why"]!!,
+                if (p["action"] != null) "Then" to "A learned shortcut: ${p["action_label"]} when ${p["trigger_label"]}" else "Then" to "A request drafted for Prometheus; you read it and send it",
+            )
+            ProposalKind.LEARN_SHORTCUT -> listOfNotNull(
+                "When" to p["trigger_label"]!!, "Then" to p["action_label"]!!, p["why"]?.let { "Why" to it },
+                "How" to "A one-tap card each time. Horologion can make it run on its own (alarms and lights only) or delete it.",
+            )
+            ProposalKind.SET_ROUTINE -> listOf(
+                (if (p["delete"] != null) "Delete" else "Routine") to p["sentence"]!!,
+                "How" to if (p["delete"] != null) "Gone from Hestia; Undo brings it back." else "Runs on its own with an Undo each time. Change it by telling Athena; turn it off or delete it in Hestia.",
+            )
+            ProposalKind.TASK_BUDGET -> listOf(
+                "Task" to p["title"]!!, "Up to" to "${p["cents"]} cents (it started with ${dev.phonerecall.mind.Tasks.DEFAULT_CENTS})",
+                "Then" to "Its session may spend that much; if it paused at its budget, it carries on. Horologion can cancel it.",
             )
         }
     }

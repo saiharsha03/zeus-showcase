@@ -95,7 +95,7 @@ class TeleteHub private constructor(private val app: Context) {
         val link = runCatching { dev.phonerecall.hestia.HestiaCore.get(app).snapshot.link }.getOrNull()
         val r = remote
         return Facts(
-            granted = listOf(Perm.FINE, Perm.BACKGROUND, Perm.ACTIVITY, Perm.CALL_LOG, Perm.CONTACTS, Perm.CALENDAR, Perm.MIC, Perm.NOTIFY).filter(::granted).toSet() +
+            granted = listOf(Perm.FINE, Perm.BACKGROUND, Perm.ACTIVITY, Perm.CALL_LOG, Perm.CALL, Perm.CONTACTS, Perm.CALENDAR, Perm.MIC, Perm.NOTIFY, Perm.NEARBY).filter(::granted).toSet() +
                 // Before Android 13 notifications need no permission.
                 (if (Build.VERSION.SDK_INT < 33) setOf(Perm.NOTIFY) else emptySet()),
             listener = app.packageName in NotificationManagerCompat.getEnabledListenerPackages(app),
@@ -169,7 +169,7 @@ class TeleteHub private constructor(private val app: Context) {
     fun runAll() = scope.launch { for (t in tests()) { run(t.id); while (t.id in _state.value.running) delay(200) } }
 
     fun tests(): List<SelfTest> = listOf(
-        SelfTest("athena", "Athena", "Sends Delphi's model a one-word ping and shows the reply") {
+        SelfTest("athena", "Athena", "Sends Anthropic a one-word ping with your key and shows the reply") {
             val m = BrainCore.get(app).haiku() ?: throw TestFailed("No Anthropic key in Calypso")
             val reply = m.complete("selftest", "You are Athena, the owner's assistant in Zeus. This is a setup self-test.", "Ping. Reply with one short friendly word.", 20)
             if (reply.isBlank()) throw TestFailed("She answered with nothing") else "She said: ${reply.take(80)}"

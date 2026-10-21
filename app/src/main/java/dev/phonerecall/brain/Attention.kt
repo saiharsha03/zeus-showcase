@@ -119,6 +119,11 @@ class AttentionStore(context: Context, private val clock: () -> java.time.ZonedD
 
     /** Runs `post` when the budget allows; otherwise the notification waits for the brief. True when it posted. */
     @Synchronized fun notify(urgency: Urgency, key: String, title: String, post: () -> Unit): Boolean {
+        // Match mode or office focus (qol2/Touches): Zeus's nice-to-have alerts wait for the brief.
+        if (dev.phonerecall.qol2.Touches.holds(urgency)) {
+            add(DigestItem("n:$key", title, Attention.briefDay(clock()).toString()))
+            return false
+        }
         val d = day()
         if (!Attention.mayNotify(urgency, d.notified, budget().notifications)) {
             add(DigestItem("n:$key", title, Attention.briefDay(clock()).toString()))

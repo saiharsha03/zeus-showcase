@@ -1,6 +1,7 @@
 package dev.phonerecall.lemnos
 
 import dev.phonerecall.brain.NetGate
+import dev.phonerecall.brain.TlsGuard
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -15,11 +16,7 @@ import org.json.JSONObject
 import java.io.InputStream
 import java.io.OutputStream
 import java.net.URLEncoder
-import java.security.KeyStore
 import java.util.concurrent.TimeUnit
-import javax.net.ssl.SSLContext
-import javax.net.ssl.TrustManagerFactory
-import javax.net.ssl.X509TrustManager
 
 // ---- what Lemnos returns (docs/ZEUS-GATEWAY.md) ----
 
@@ -53,9 +50,8 @@ object Gateway {
     private val JSON = "application/json".toMediaType()
 
     val client: OkHttpClient by lazy {
-        val tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm()).apply { init(null as KeyStore?) }
-        val trust = tmf.trustManagers.first { it is X509TrustManager } as X509TrustManager
-        val ssl = SSLContext.getInstance("TLS").apply { init(arrayOf(DeviceKeys.keyManager), arrayOf(trust), null) }
+        val trust = TlsGuard.trustManager
+        val ssl = TlsGuard.sslContext(arrayOf(DeviceKeys.keyManager), trust)
         OkHttpClient.Builder()
             .sslSocketFactory(ssl.socketFactory, trust)
             .addInterceptor(NetGate.okHttp)
@@ -281,6 +277,8 @@ object Gateway {
     /** Iris's ops on Moneta, oldest first, as their JSON envelopes. */
     fun monetaOps(): List<String> = arr("/api/moneta/ops").let { a -> (0 until a.length()).map { a.getJSONObject(it).toString() } }
     fun monetaAck(ids: List<String>) { obj("POST", "/api/moneta/ops/ack", JSONObject().put("ids", JSONArray(ids))) }
+    /** Moneta's view for Iris ([dev.phonerecall.moneta.MonetaView]): replaces the last one. Returns the rows the gateway kept. */
+    fun monetaView(body: String): Int = obj("PUT", "/api/moneta/view", JSONObject(body)).optInt("rows")
     /** Iris's trip.info messages for Argo, oldest first, as JSON. No confirmation numbers. */
     fun argoInfo(): List<String> = arr("/api/argo/info").let { a -> (0 until a.length()).map { a.getJSONObject(it).toString() } }
     fun argoAck(ids: List<String>) { obj("POST", "/api/argo/info/ack", JSONObject().put("ids", JSONArray(ids))) }

@@ -16,6 +16,8 @@ data class OlympiaSettings(
     val alerts: Alerts = Alerts.KEY,
     /** F1 practice is hidden by default, like the calendar's seeded rule. */
     val practice: Boolean = false,
+    /** Sports where big matches he doesn't follow (finals, derbies, playoffs) get a quiet card. */
+    val big: Set<Sport> = setOf(Sport.SOCCER, Sport.NFL),
 ) {
     fun follows(m: Match): Boolean {
         if (m.teams.none { it in followed }) return false
@@ -35,6 +37,8 @@ data class OlympiaSnapshot(
     val live: Map<String, Live> = emptyMap(),
     /** The last F1 podium ("Singapore Grand Prix" to three names). */
     val podium: Pair<String, List<String>>? = null,
+    /** Big matches today and tomorrow that he doesn't follow ([BigMatch]). */
+    val big: List<Match> = emptyList(),
     val refreshedAt: Long = 0L,
     val loaded: Boolean = false,
 ) {
@@ -108,6 +112,7 @@ internal object Codec {
         .put("ph", m.phase.name).put("ti", m.title).put("ho", side(m.home)).put("aw", side(m.away))
         .put("tm", JSONArray(m.teams.toList())).put("ck", m.clock).put("dt", m.detail)
         .put("se", m.session).put("rs", m.result).put("ev", m.espnEvent).put("ci", m.circuit)
+        .put("bc", JSONArray(m.broadcasts)).put("sg", m.stage)
 
     fun match(o: JSONObject): Match? = runCatching {
         Match(
@@ -117,6 +122,7 @@ internal object Codec {
             clock = o.optString("ck"), detail = o.optString("dt"),
             session = o.optString("se").ifEmpty { null }, result = o.optString("rs").ifEmpty { null },
             espnEvent = o.optString("ev").ifEmpty { null }, circuit = o.optString("ci").ifEmpty { null },
+            broadcasts = strs(o.optJSONArray("bc")), stage = o.optString("sg").ifEmpty { null },
         )
     }.getOrNull()
 
@@ -148,6 +154,8 @@ internal object Codec {
         .put("fo", JSONArray(s.settings.followed.toList()))
         .put("co", JSONArray(s.settings.competitions.map { it.name }))
         .put("al", s.settings.alerts.name).put("pq", s.settings.practice)
+        .put("bs", JSONArray(s.settings.big.map { it.name }))
+        .put("bg", JSONArray(s.big.map(::match)))
         .put("ma", JSONArray(s.matches.map(::match)))
         .put("te", JSONArray(s.teams.values.map { JSONObject().put("k", it.key).put("st", it.standing).put("rc", it.record) }))
         .put("li", JSONArray(s.live.values.map(::live)))
@@ -163,7 +171,9 @@ internal object Codec {
             competitions = strs(o.optJSONArray("co")).mapNotNull { n -> Competition.entries.firstOrNull { it.name == n } }.toSet(),
             alerts = Alerts.entries.firstOrNull { it.name == o.optString("al") } ?: Alerts.KEY,
             practice = o.optBoolean("pq"),
+            big = o.optJSONArray("bs")?.let { a -> strs(a).mapNotNull { n -> Sport.entries.firstOrNull { it.name == n } }.toSet() } ?: OlympiaSettings().big,
         )
+        val bg = o.optJSONArray("bg")
         val ma = o.optJSONArray("ma")
         val te = o.optJSONArray("te")
         val li = o.optJSONArray("li")
@@ -175,6 +185,7 @@ internal object Codec {
             },
             live = (0 until (li?.length() ?: 0)).mapNotNull { li!!.optJSONObject(it)?.let(::live) }.associateBy { it.match.id },
             podium = o.optJSONObject("pd")?.let { it.optString("r") to strs(it.optJSONArray("d")) },
+            big = (0 until (bg?.length() ?: 0)).mapNotNull { bg!!.optJSONObject(it)?.let(::match) },
             refreshedAt = o.optLong("at"),
         )
     }

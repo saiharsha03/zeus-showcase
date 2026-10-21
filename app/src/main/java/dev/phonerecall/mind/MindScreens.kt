@@ -336,7 +336,7 @@ fun LongJobsContent(jobs: List<LongJob>, gutter: Dp, onCancel: (String) -> Unit,
         LazyColumn(contentPadding = PaddingValues(start = gutter, end = gutter, bottom = Space.xxxl)) {
             item {
                 Line(
-                    "Ask in Delphi, like \"research winter tires and come back tomorrow\". Starting a job needs no confirmation. Anything a job wants to do at the end comes back to you as a proposal.",
+                    "Ask Athena, like \"research winter tires and come back tomorrow\". Starting a job needs no confirmation. Anything a job wants to do at the end comes back to you as a proposal.",
                     Type.small, c.ink2, Modifier.padding(bottom = Space.m).widthIn(max = 560.dp),
                 )
             }
@@ -456,11 +456,11 @@ fun SpendRows(spend: SpendState, m: MindState) {
     val cap = spend.capUsd * 100L
     val total = spend.spentMicros / 10_000
     Column {
-        Row2("Spend this month", "All of Athena: Delphi and the phone's quick calls, plus her background mind and circle. She stops at the cap; one request already running may finish.") {
+        Row2("Spend this month", "All of Athena: her chat, tasks, background mind and circle, plus the phone's quick calls. She stops at the cap; one request already running may finish.") {
             StatusWord(usd(total) + " of $" + spend.capUsd, if (total >= cap) Tone.ALERT else Tone.QUIET)
         }
         Column(Modifier.fillMaxWidth().padding(bottom = Space.s)) {
-            FactRow("Quick", usd((spend.messagesMicros - spend.advisorMicros) / 10_000) + " (Delphi, triage, arrivals)", labelWidth = 104.dp)
+            FactRow("Quick", usd((spend.messagesMicros - spend.advisorMicros) / 10_000) + " (triage, arrivals, reflect)", labelWidth = 104.dp)
             // Metis's share counts both paths: Delphi's advisor tool and her consultations in the background.
             val metis = m.circle[Metis.THREAD] ?: 0
             FactRow("Metis", usd(metis) + " in advisor consultations", if (!TopTierCaps.allowed(metis, m.circle[Protege.ANNABETH.agentName] ?: 0).metis) "At cap" else null, Tone.ALERT, labelWidth = 104.dp)

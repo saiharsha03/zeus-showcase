@@ -6,14 +6,14 @@ Code: `app/src/main/java/dev/phonerecall/voice/`.
 - Push-to-talk only. The side key (default assistant) or the Speak button opens the on-device recognizer. There is no hotword and nothing listens by itself.
 - `VoiceRouter.route` decides per final recognizer result:
   - **Quick command** (fixed parser, `QuickCommands.parse`): timers, alarms, music pause/resume/next/previous, "play X", "add X to groceries", "what's next". Runs on the phone.
-  - **Not a known command**: Nano (on device, foreground only) gets one chance to name one of the quick tools (`QuickCommands.fromNano`). Otherwise the words go to Delphi's brain, the same as typed text.
-  - **"Let's talk"** (and similar phrases), or a question of 14 or more words: Gemini Live. A long question goes to Delphi instead when Live isn't available (no key, or no minutes left).
-- Typed text still goes to Delphi as before.
+  - **Not a known command**: Nano (on device, foreground only) gets one chance to name one of the quick tools (`QuickCommands.fromNano`). Otherwise the words go to Athena (the chat), the same as typed text.
+  - **"Let's talk"** (and similar phrases), or a question of 14 or more words: Gemini Live. A long question goes to Athena instead when Live isn't available (no key, or no minutes left).
+- Typed text goes to Athena, as in the chat.
 
 ## On-device path
 - `SpeechRecognizer` (the on-device recognizer when the phone has one) with `EXTRA_PREFER_OFFLINE` set. This is the existing `rememberVoiceCapture`.
-- Quick commands call Delphi's own `ToolBox.run`, so every write goes through `Fates.propose` and becomes a card. The auto-approve list is respected and is empty by default.
-- Spoken input gets spoken replies through the phone's `TextToSpeech` engine. Delphi's replies to spoken input are spoken too.
+- Quick commands call the phone's own `ToolBox.run`, so every write goes through `Fates.propose` and becomes a card. The auto-approve list is respected and is empty by default.
+- Spoken input gets spoken replies through the phone's `TextToSpeech` engine. Athena's replies to spoken input are spoken too.
 
 ## Gemini Live
 Sources:
@@ -41,7 +41,7 @@ The API reference places `responseModalities` inside `generationConfig`, while t
 
 ### What Gemini sees
 - A short system instruction with the date and time, and the rule that every action only proposes.
-- Function declarations that mirror Delphi's read tools (`now`, `read_calendar`, `read_tasks`, `read_closet`, `read_home_cards`, `read_availability`, `search_memory`, `read_music`) and its proposal tools (`set_alarm`, `set_timer`, `add_reminder`, `add_task`, `complete_task`, `add_calendar_event`, `create_card`, `add_to_list`, `play_music`, `music_control`).
+- Function declarations that mirror the phone's read tools (`now`, `read_calendar`, `read_tasks`, `read_closet`, `read_home_cards`, `read_availability`, `search_memory`, `read_music`) and its proposal tools (`set_alarm`, `set_timer`, `add_reminder`, `add_task`, `complete_task`, `add_calendar_event`, `create_card`, `add_to_list`, `play_music`, `music_control`).
 - Never Calypso or Aegis: no `calypso_deposit`, `aegis_list` or `aegis_read`. Never `hand_off`, which starts paid background work. Never raw Odyssey, health or money data, because no tool returns them.
 - `propose_plan` is left out because its free-form step input has no schema Gemini accepts. Gemini calls the single tools instead.
 - `LiveToolBridge` refuses any name outside this list, whatever Gemini asks for. Writes go through `ToolBox` → `Fates.propose`, so they become cards. Gemini can never act directly.
@@ -83,4 +83,4 @@ Replies are spoken. Live speaks anyway.
 - No session resumption or context-window compression. Audio-only sessions have a time limit, and `goAway` ends the session.
 - No Piper or Kokoro voice. TextToSpeech uses the phone's engine.
 - Nano's intent guess works only while Zeus is in the foreground (AICore's rule). The sheet is in the foreground.
-- No "deep thinking" handoff from Live to Claude in the middle of a conversation. Long questions go to Live, and a short non-command goes to Delphi.
+- No "deep thinking" handoff from Live to Claude in the middle of a conversation. Long questions go to Live, and a short non-command goes to Athena.

@@ -36,7 +36,11 @@ class HestiaCore(val backend: HomeBackend) : HomeReads, HomeHands {
         val d = snapshot.device(deviceId) ?: return "That device is gone"
         if (d.kind.forbidden) return HomeRules.FORBIDDEN
         if (!d.controllable) return "Hestia doesn't control ${d.kind.plural} yet"
-        return try { backend.command(d.id, command); null } catch (e: HomeError) { e.message } catch (e: Exception) { e.message ?: "It didn't work" }
+        return try {
+            backend.command(d.id, command)
+            runCatching { tapped(d, command, snapshot) }
+            null
+        } catch (e: HomeError) { e.message } catch (e: Exception) { e.message ?: "It didn't work" }
     }
 
     override fun control(payload: Map<String, String>): ExecResult {
@@ -58,6 +62,9 @@ class HestiaCore(val backend: HomeBackend) : HomeReads, HomeHands {
     companion object {
         /** Odyssey's "is he home?". Set by the app; Hestia never imports Odyssey. Null answers mean not known. */
         @Volatile var whereabouts: Whereabouts = Whereabouts { null }
+
+        /** Each tap that worked (device as it was, the command, the home): the routines feed it to the learned-shortcuts evidence. */
+        @Volatile var tapped: (HomeDevice, HomeCommand, HomeSnapshot) -> Unit = { _, _, _ -> }
 
         @Volatile private var instance: HestiaCore? = null
         private var google: GoogleHomeBackend? = null

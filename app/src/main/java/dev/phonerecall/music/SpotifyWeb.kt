@@ -16,7 +16,7 @@ object GatedHttp : Http, FormPost {
     override fun call(method: String, url: String, headers: Map<String, String>, body: String?): Pair<Int, String> {
         NetGate.check(url)
         val t0 = System.currentTimeMillis()
-        val c = URL(url).openConnection() as HttpURLConnection
+        val c = dev.phonerecall.brain.TlsGuard.open(url)
         try {
             c.instanceFollowRedirects = false
             c.requestMethod = method

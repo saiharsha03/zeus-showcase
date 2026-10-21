@@ -62,7 +62,7 @@ class ScheduleBookTest {
 
     @Test fun builtInsAreThereAndKeepTheirPrompts() {
         val b = ScheduleBook(MapKv())
-        assertEquals(listOf("daily-plan", "evening-recap", "weekly-hygiene", "dream"), b.jobs().map { it.name })
+        assertEquals(listOf("daily-plan", "evening-recap", "weekly-hygiene", "dream", "ideas"), b.jobs().map { it.name })
         assertTrue(b.jobs().all { it.builtin && it.full.startsWith("Zeus · ") })
         assertNotNull(b.problem(change("delete", "daily-plan")))
         assertNotNull(b.problem(change("update", "daily-plan", prompt = "Do something else")))
@@ -123,7 +123,7 @@ class ScheduleDeployTest {
 
         val storeId = r.mind.ids.store!!
         // Its first outbox file goes to Agora, as counts only: the run's titles and note never leave the phone.
-        r.api.createMemory(storeId, "/outbox/weekly-review-2026-10-23.json", """{"cards":[{"title":"Dr. Rao, blood test","body":"x"}],"proposals":[{"steps":[]}],"note":"paid ${'$'}1,234 rent"}""")
+        r.api.createMemory(storeId, "/outbox/weekly-review-2026-10-23.json", """{"cards":[{"title":"Dr. Kumar, blood test","body":"x"}],"proposals":[{"steps":[]}],"note":"paid ${'$'}1,234 rent"}""")
         r.mind.pullOutbox()
         assertTrue(r.sink.cards.isEmpty())
         assertEquals("Trial run of Zeus · weekly-review worked: 1 card(s), 1 proposal(s). It runs on its schedule from now on.", r.sink.agora.single())

@@ -69,11 +69,17 @@ class FakeMindApi : MindApi {
     override fun createSession(agent: AgentRef, environmentId: String, memoryStoreId: String, title: String, nonce: String, budgetCents: Long): SessionInfo {
         creates++
         val s = SessionInfo(id("sesn"), "idle", budgetCents = budgetCents, title = title)
-        sessions[s.id] = s; nonces[nonce] = s.id; events[s.id] = ArrayList()
+        sessions[s.id] = s; nonces[nonce] = s.id; events[s.id] = ArrayList(); sessionAgent[s.id] = agent.id
         lose("session")
         return s
     }
     override fun session(id: String) = sessions.getValue(id)
+    /** Which agent each session runs, and the sessions archived (the fresh start). */
+    val sessionAgent = HashMap<String, String>()
+    val archivedSessions = ArrayList<String>()
+    override fun sessionsOf(agentId: String) = sessions.values.filter { sessionAgent[it.id] == agentId && it.id !in archivedSessions }
+    override fun archiveSession(id: String) { archivedSessions += id }
+    override fun deploymentsNamed(prefix: String) = deployments.values.filter { it.name.startsWith(prefix) }.map { it.copy(paused = it.id in paused) }
     override fun setSessionBudget(id: String, cents: Long) { sessions[id] = sessions.getValue(id).copy(budgetCents = cents) }
     override fun threads(sessionId: String) = threads[sessionId].orEmpty()
 
@@ -89,8 +95,15 @@ class FakeMindApi : MindApi {
 
     private fun charge(sessionId: String) { sessions[sessionId] = sessions.getValue(sessionId).let { it.copy(listCostCents = it.listCostCents + nextCost, activeSeconds = it.activeSeconds + 30) } }
 
+    /** The next this many user.messages are refused the way the API refuses one while the session waits ("waiting"). */
+    var busyNext = 0
+    /** Every user.message that reached a session, in order. */
+    val sentTexts = ArrayList<Pair<String, String>>()
+
     override fun sendMessage(sessionId: String, text: String) {
+        if (busyNext > 0) { busyNext--; throw SessionBusy(false, "Invalid user.message event at events[0]: waiting") }
         messagesSent++
+        sentTexts += sessionId to text
         val list = events.getValue(sessionId)
         list += MindEvent.UserMessage(id("sevt"), at(), text)
         val tool = script(text)
@@ -154,6 +167,14 @@ class FakeSink : MindSink {
     override fun changed() = Unit
     val agora = ArrayList<String>()
     override fun agora(text: String) { agora += text }
+    val chatReplies = ArrayList<Pair<Long, String>>()
+    val chatProposals = ArrayList<Pair<Long, Long>>()
+    val chatNotes = ArrayList<Pair<String, String>>()
+    override fun chatReply(chat: Long, text: String) { chatReplies += chat to text }
+    override fun chatProposal(chat: Long, id: Long, title: String) { chatProposals += chat to id }
+    override fun chatNote(key: String, text: String) { chatNotes += key to text }
+    val sessionsStarted = ArrayList<String>()
+    override fun sessionStarted(day: String) { sessionsStarted += day }
 }
 
 class FakeContext(var zoneId: ZoneId = ZoneId.of("America/New_York")) : MindContext {
@@ -168,6 +189,12 @@ class FakeContext(var zoneId: ZoneId = ZoneId.of("America/New_York")) : MindCont
     override fun preferences() = "# Preferences\n- Auto-approve: nothing."
     override fun names() = people
     override fun sealed() = sealedNames
+    var factsText = ""
+    override fun facts() = factsText
+    var pendingText = ""
+    override fun pending() = pendingText
+    val turns = ArrayList<String>()
+    override fun recentTurns(n: Int) = turns.takeLast(n)
 }
 
 class FakeLedger(var capCents: Long = 10_000, var spent: Long = 0) : MindLedger {

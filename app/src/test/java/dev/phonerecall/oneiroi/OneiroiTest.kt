@@ -30,15 +30,15 @@ class FactStoreTest {
     @Test fun aChangedFactSupersedesAndNeverLeavesTwoLive() {
         val s = store()
         val a = s.put("car", "His car is a Mazda CX-5", source = "chat", key = "car model") as FactWrite.Added
-        val b = s.put("car", "His car is a Honda Civic", source = "chat", key = "car model") as FactWrite.Superseded
+        val b = s.put("car", "His car is a Mazda 3", source = "chat", key = "car model") as FactWrite.Superseded
         assertEquals(a.fact.id, b.old.id)
         assertEquals(a.fact.id, b.fact.supersedes)
         assertEquals(b.fact.id, s.get(a.fact.id)!!.supersededBy)
-        assertEquals(listOf("His car is a Honda Civic"), s.live().map { it.text })
+        assertEquals(listOf("His car is a Mazda 3"), s.live().map { it.text })
         noTwoLive(s)
         // Saying it again changes nothing; a correction by id makes the third version.
-        assertTrue(s.put("car", "His car is a Honda Civic", source = "chat", key = "car model") is FactWrite.Same)
-        val c = s.supersede(b.fact.id, "His car is a Honda Accord", "owner") as FactWrite.Superseded
+        assertTrue(s.put("car", "His car is a Mazda 3", source = "chat", key = "car model") is FactWrite.Same)
+        val c = s.supersede(b.fact.id, "His car is a Mazda 6", "owner") as FactWrite.Superseded
         assertEquals(FactStatus.CONFIRMED, c.fact.statusOf)
         assertEquals(listOf(a.fact.id, b.fact.id, c.fact.id), s.chain(a.fact.id).map { it.id })
         assertTrue(s.supersede(a.fact.id, "anything", "owner") is FactWrite.Refused)
@@ -106,7 +106,7 @@ class ReflectTest {
         val iris = IrisQueue(kv)
         val old = (facts.put("car", "His car is a Mazda", source = "chat", key = "car model") as FactWrite.Added).fact
         val reply = """Sure: ```json
-{"facts":[{"topic":"car","key":"car model","text":"His car is a Honda Civic","status":"confirmed","corrects":${old.id}},
+{"facts":[{"topic":"car","key":"car model","text":"His car is a Mazda 3","status":"confirmed","corrects":${old.id}},
  {"topic":"home","key":"city","text":"He moved to Rochester","status":"confirmed","for_iris":true},
  {"topic":"money","key":"fuel","text":"monthly fuel = sum(Moneta Fuel, month)","derivation":true},
  {"topic":"money","key":"fuel total","text":"Fuel this month was 212"}],
@@ -115,7 +115,7 @@ class ReflectTest {
 ```"""
         val model = ScriptModel(reply)
         val r = Reflector(facts, refs, iris, { clean }, { model })
-        val out = r.reflect("Delphi", listOf(Said(1, Said.OWNER, "Actually I drive a Honda Civic now, and I moved to Rochester"), Said(2, Said.ATHENA, "Noted.")))
+        val out = r.reflect("Delphi", listOf(Said(1, Said.OWNER, "Actually I drive a Mazda 3 now, and I moved to Rochester"), Said(2, Said.ATHENA, "Noted.")))
         assertEquals(1, out.corrected)
         assertEquals(2, out.added)
         assertEquals(1, out.refused)
@@ -123,7 +123,7 @@ class ReflectTest {
         assertEquals(2, out.lessons)
         assertEquals(1, out.toIris)
         assertFalse(facts.get(old.id)!!.live)
-        assertEquals("His car is a Honda Civic", facts.live().first { it.topic == "car" }.text)
+        assertEquals("His car is a Mazda 3", facts.live().first { it.topic == "car" }.text)
         assertEquals(FactKind.DERIVED, facts.live().first { it.topic == "money" }.kindOf)
         assertEquals(listOf("lessons", "workflows"), facts.live().filter { it.kindOf == FactKind.LESSON }.map { it.topic })
         assertEquals("his Mazda", refs.all().single().meaning)
@@ -334,7 +334,7 @@ class MemoryViewTest {
         assertEquals(MemoryAsk.About("my car"), MemoryView.parse("What do you know about my car?"))
         assertEquals(MemoryAsk.About("M3"), MemoryView.parse("/memory M3"))
         assertEquals(MemoryAsk.About(""), MemoryView.parse("/memory"))
-        assertEquals(MemoryAsk.Correct(12, "a Honda Civic"), MemoryView.parse("#12 is wrong, it's a Honda Civic."))
+        assertEquals(MemoryAsk.Correct(12, "a Mazda 3"), MemoryView.parse("#12 is wrong, it's a Mazda 3."))
         assertEquals(MemoryAsk.Correct(3, "Rochester"), MemoryView.parse("correct #3: Rochester"))
         assertEquals(MemoryAsk.Correct(4, "every Friday"), MemoryView.parse("#4 should be every Friday"))
         assertEquals(MemoryAsk.Retract(12), MemoryView.parse("#12 is wrong"))

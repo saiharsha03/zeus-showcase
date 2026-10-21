@@ -14,6 +14,7 @@ import dev.phonerecall.ui.TileForm
 import dev.phonerecall.ui.Tone
 import java.time.Instant
 import java.time.ZoneId
+import java.util.Locale
 import java.time.ZonedDateTime
 
 /*
@@ -209,6 +210,7 @@ object OdysseyBrain {
         w.score?.let { out += "Driving score this week $it over ${w.trips} ${if (w.trips == 1) "drive" else "drives"}" + (w.lastWeekScore?.let { p -> " (last week $p)" } ?: "") }
         LeasePace.pace(d.car.lease, d.car.readings, d.drives, Instant.ofEpochMilli(now).atZone(zone).toLocalDate(), zone)?.let { out += LeasePace.brainLine(it) }
         arrival(d, now, zone)?.let { out += it }
+        out += today(d, now, zone)
         out += Stops.facts(d, now, zone)
         return out.map { scrub(it) }
     }
@@ -222,8 +224,70 @@ object OdysseyBrain {
         // The geofence's entry, or the open stay at the office (he was already inside when it was saved).
         val a = d.arrivals.lastOrNull { it.placeId == work.id && Instant.ofEpochMilli(it.at).atZone(zone).toLocalDate() == day }
             ?: d.stay?.takeIf { s -> Geo.meters(work.lat, work.lng, s.lat, s.lng) < PlaceLearner.CLUSTER_M && Instant.ofEpochMilli(s.start).atZone(zone).toLocalDate() == day }?.let { Arrival(work.id, Kind.WORK, it.start) }
+            ?: d.visits.lastOrNull { it.placeId == work.id && Instant.ofEpochMilli(it.start).atZone(zone).toLocalDate() == day }?.let { Arrival(work.id, Kind.WORK, it.start, it.end) }
             ?: return saved?.let { "Odyssey saved his office from this morning's drive (he can undo it in Odyssey)" }
         return a.left?.let { "Left the office at ${hm(it)} today (there from ${hm(a.at)})" } ?: "At the office since ${hm(a.at)} today"
+    }
+
+    /**
+     * Where he is now and his last drive today, in words: "At home since 2:49 PM today", "Last drive today:
+     * the office to home, 2:28 to 2:49 PM, 20 min, score 57". The office has its own line ([arrival]); streets never.
+     */
+    fun today(d: OdysseyData, now: Long, zone: ZoneId = ZoneId.systemDefault()): List<String> {
+        val day = Instant.ofEpochMilli(now).atZone(zone).toLocalDate()
+        fun today(ms: Long) = Instant.ofEpochMilli(ms).atZone(zone).toLocalDate() == day
+        fun hm(ms: Long) = Instant.ofEpochMilli(ms).atZone(zone).let { t -> Clock.hm(t.hour * 60 + t.minute).let { if (it.endsWith("M")) it else "$it ${if (t.hour < 12) "AM" else "PM"}" } }
+        val out = ArrayList<String>()
+        val s = d.stay?.takeIf { today(it.start) }
+        val here = s?.let { Visits.placeFor(d.places, it.lat, it.lng, it.accuracy) }
+        if (s != null && here != null && here.kind != Kind.WORK) Stops.plain(here)?.let { out += "At $it since ${hm(s.start)} today" }
+        val last = d.drives.filter { today(it.end) }.maxByOrNull { it.end }
+        if (last != null) {
+            val trip = DriveInsights.tripOf(d, last)
+            fun name(id: String?) = d.place(id)?.let { Stops.plain(it) }
+            val from = name(trip?.from) ?: d.visits.lastOrNull { it.end in (last.start - 15 * 60_000L)..(last.start + 5 * 60_000L) }?.let { name(it.placeId) }
+            val to = name(trip?.to) ?: here?.takeIf { s != null && s.start in (last.end - 5 * 60_000L)..(last.end + 15 * 60_000L) }?.let { Stops.plain(it) }
+            val leg = if (from != null && to != null) "$from to $to, " else ""
+            out += "Last drive today: $leg${hm(last.start)} to ${hm(last.end)}, ${last.minutes.coerceAtLeast(1)} min, score ${last.score}"
+        }
+        return out
+    }
+
+    /** A place as Athena may say it: "Home", "Office", "Wegmans", "Car wash"; never its street. */
+    fun say(p: KnownPlace?): String = when {
+        p == null -> "an unnamed place"
+        p.kind == Kind.HOME -> "Home"
+        p.kind == Kind.WORK -> "Office"
+        else -> Stops.plain(p)?.removePrefix("a ")?.replaceFirstChar { it.uppercase() } ?: "an unnamed place"
+    }
+
+    /**
+     * Odyssey for an Athena read tool: where he is now, today's stays and drives in order, today's lines about
+     * Home and the office, and his named places. Place names, times, minutes and miles; never streets, addresses or coordinates.
+     */
+    fun places(d: OdysseyData, now: Long, zone: ZoneId = ZoneId.systemDefault()): Map<String, Any?> {
+        if (!d.settings.on) return mapOf("on" to false)
+        val day = Instant.ofEpochMilli(now).atZone(zone).toLocalDate()
+        val from = day.atStartOfDay(zone).toInstant().toEpochMilli(); val to = day.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+        fun hm(ms: Long) = Instant.ofEpochMilli(ms).atZone(zone).let { t -> Clock.hm(t.hour * 60 + t.minute).let { if (it.endsWith("M")) it else "$it ${if (t.hour < 12) "AM" else "PM"}" } }
+        val s = d.stay
+        val here = s?.let { Visits.placeFor(d.places, it.lat, it.lng, it.accuracy) }
+        val stays = d.visits.filter { it.start < to && it.end > from }.map { v ->
+            linkedMapOf<String, Any?>("type" to "stay", "place" to say(d.place(v.placeId)), "from" to hm(v.start), "to" to hm(v.end), "minutes" to v.minutes, "start" to v.start)
+        } + listOfNotNull(s?.takeIf { it.start < to }?.let { linkedMapOf<String, Any?>("type" to "stay", "place" to say(here), "from" to hm(it.start), "to" to "now", "minutes" to (now - it.start) / 60_000L, "start" to it.start) })
+        val drives = Timeline.drives(d, from, to).map { (t, r) ->
+            linkedMapOf<String, Any?>("type" to "drive", "from" to hm(t.start), "to" to hm(t.end), "minutes" to t.minutes, "start" to t.start).apply {
+                r?.let { put("miles", "%.1f".format(Locale.US, Units.miles(it.meters))); put("score", it.score); put("tag", DriveInsights.tag(d, it, zone).label) }
+            }
+        }
+        val day0 = (stays + drives).sortedBy { it["start"] as Long }.onEach { it.remove("start") }
+        return linkedMapOf(
+            "now" to (s?.let { "${say(here)} since ${hm(it.start)}" } ?: if (d.driving) "Driving" else "Not known"),
+            "today" to day0,
+            "lines" to (listOfNotNull(arrival(d, now, zone)) + today(d, now, zone)).map { scrub(it) },
+            "places" to d.places.filter { it.kind == Kind.HOME || it.kind == Kind.WORK || Stops.plain(it) != null }.sortedByDescending { it.visits }.take(30)
+                .map { p -> linkedMapOf("name" to say(p), "kind" to p.kind.label, "visits" to p.visits) },
+        )
     }
 
     /** Belt and braces: anything that looks like a coordinate or an amount is cut. */

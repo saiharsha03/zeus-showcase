@@ -171,12 +171,14 @@ object DeviceWatch {
 class CarLinkReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (!DeviceWatch.canCar(context)) return
+        // Any Bluetooth audio going away: media muted at work stays muted on the speaker (qol/WorkMute).
+        if (intent.action == BluetoothDevice.ACTION_ACL_DISCONNECTED) dev.phonerecall.qol.WorkMuteCore.linkGone(context.applicationContext)
         @Suppress("DEPRECATION") val d = intent.getParcelableExtra<BluetoothDevice>(BluetoothDevice.EXTRA_DEVICE) ?: return
         val cls = runCatching { d.bluetoothClass?.deviceClass }.getOrNull() ?: return
         if (!DeviceLog.isCar(cls)) return
         when (intent.action) {
-            BluetoothDevice.ACTION_ACL_CONNECTED -> Clio.info(DeviceLog.AREA, DeviceLog.CAR_ON)
-            BluetoothDevice.ACTION_ACL_DISCONNECTED -> Clio.info(DeviceLog.AREA, DeviceLog.CAR_OFF)
+            BluetoothDevice.ACTION_ACL_CONNECTED -> { Clio.info(DeviceLog.AREA, DeviceLog.CAR_ON); dev.phonerecall.qol.QolCore.carLink(context, true); dev.phonerecall.hestia.HestiaRoutines.eventAsync(context, dev.phonerecall.hestia.Moment.CAR_ON) }
+            BluetoothDevice.ACTION_ACL_DISCONNECTED -> { Clio.info(DeviceLog.AREA, DeviceLog.CAR_OFF); dev.phonerecall.qol.QolCore.carLink(context, false); dev.phonerecall.hestia.HestiaRoutines.eventAsync(context, dev.phonerecall.hestia.Moment.CAR_OFF) }
         }
     }
 }

@@ -34,6 +34,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -138,8 +139,9 @@ fun Shell(vm: AthenaViewModel, wide: Boolean, hinge: Hinge?) {
     var shelfName by rememberSaveable { mutableStateOf(dev.phonerecall.vault.Shelf.SEALED.name) }
     val shelf = dev.phonerecall.vault.Shelf.valueOf(shelfName)
     // Calypso from another screen or the rail is about keys, so it opens on Sealed.
-    val go: (Dest) -> Unit = { if (it == Dest.VAULT) shelfName = dev.phonerecall.vault.Shelf.SEALED.name; destName = it.name }
-    val openSection: (Long) -> Unit = { destName = SECTION + it }
+    // Remembered, so a screen whose inputs didn't change can skip when the shell recomposes (each senses bump).
+    val go: (Dest) -> Unit = remember { { if (it == Dest.VAULT) shelfName = dev.phonerecall.vault.Shelf.SEALED.name; destName = it.name } }
+    val openSection: (Long) -> Unit = remember { { destName = SECTION + it } }
     BackHandler(dest != Dest.HOME) {
         destName = when {
             sectionId != null -> Dest.PARNASSUS.name
@@ -151,7 +153,10 @@ fun Shell(vm: AthenaViewModel, wide: Boolean, hinge: Hinge?) {
     }
     // Theogony first: the seed on first launch (paired), or the interview when it is due.
     val appContext = androidx.compose.ui.platform.LocalContext.current.applicationContext
-    LaunchedEffect(Unit) { if (dev.phonerecall.theogony.TheogonyHub.get(appContext).onLaunch()) destName = Dest.THEOGONY.name }
+    // The fresh start: Genesis is Home until it's done, and Theogony runs inside it.
+    val genesis = remember { dev.phonerecall.fresh.GenesisHub.get(appContext) }
+    val gen by genesis.state.collectAsStateWithLifecycle()
+    LaunchedEffect(Unit) { if (!gen.active && dev.phonerecall.theogony.TheogonyHub.get(appContext).onLaunch()) destName = Dest.THEOGONY.name }
     // Themis search: the settings' meaning vectors, from the cache (or made once when EmbeddingGemma is on the phone).
     LaunchedEffect(Unit) { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { runCatching { dev.phonerecall.settings.ThemisIndex.warm(appContext) } } }
     // Until it's done, the conversation sits in the rail and More: "Getting to know you · N left".
@@ -174,16 +179,18 @@ fun Shell(vm: AthenaViewModel, wide: Boolean, hinge: Hinge?) {
     }
     val senses by vm.brain.senses.collectAsStateWithLifecycle()
     // Dynamic sections join More and the rail in registry order. The cover bar stays at four and More.
-    val sections = senses.sections.filter { !it.hidden }
+    val sections = remember(senses.sections) { senses.sections.filter { !it.hidden } }
     // Unfolding while on More: the rail shows everything, so More has no meaning there.
     LaunchedEffect(wide) { if (wide && destName == MORE) destName = Dest.HOME.name }
     val gutter = if (wide) Space.gutterWide else Space.gutterNarrow
     val c = Athena.colors
 
     // A match from the sidebar's search: a place opens; a setting opens Themis on its row, lit.
-    val pick: (dev.phonerecall.settings.SettingEntry) -> Unit = { e ->
-        if (e.dest != null) Dest.entries.firstOrNull { it.name == e.dest }?.let(go)
-        else { dev.phonerecall.settings.ThemisNav.row = e.row; go(Dest.SETTINGS) }
+    val pick: (dev.phonerecall.settings.SettingEntry) -> Unit = remember {
+        { e ->
+            if (e.dest != null) Dest.entries.firstOrNull { it.name == e.dest }?.let(go)
+            else { dev.phonerecall.settings.ThemisNav.row = e.row; go(Dest.SETTINGS) }
+        }
     }
     val content: @Composable (Modifier) -> Unit = { m ->
         Box(m) {
@@ -191,7 +198,7 @@ fun Shell(vm: AthenaViewModel, wide: Boolean, hinge: Hinge?) {
             if (sectionId != null) { dev.phonerecall.brain.SectionScreen(vm.brain, sectionId, gutter) { go(Dest.PARNASSUS) }; return@Box }
             when (dest) {
                 null -> MoreScreen(gutter, go, sections, openSection, setupLeft, pick, knowLeft)
-                Dest.HOME -> HomeScreen(vm, columns = if (wide) 2 else 1, gutter = gutter, showOwl = !wide, hinge = hinge, navigate = go)
+                Dest.HOME -> if (gen.active) dev.phonerecall.fresh.GenesisScreen(vm.brain, gutter, wide, go) else HomeScreen(vm, columns = if (wide) 2 else 1, gutter = gutter, showOwl = !wide, hinge = hinge, navigate = go)
                 Dest.CALENDAR -> CalendarScreen(vm, wide, gutter)
                 Dest.TASKS -> TasksScreen(vm, wide, gutter, openLethe = { go(Dest.LETHE) }, openJobs = { go(Dest.JOBS) })
                 Dest.JOBS -> dev.phonerecall.mind.LongJobsScreen(vm.brain, gutter) { go(Dest.TASKS) }
@@ -205,9 +212,9 @@ fun Shell(vm: AthenaViewModel, wide: Boolean, hinge: Hinge?) {
                 Dest.CLOSET -> ClosetScreen(vm, wide, gutter)
                 Dest.OLYMPIA -> dev.phonerecall.olympia.OlympiaScreen(wide, gutter)
                 Dest.WEATHER -> dev.phonerecall.aeolia.AeoliaScreen(gutter)
-                Dest.ODYSSEY -> dev.phonerecall.odyssey.OdysseyScreen(wide, gutter) { go(Dest.VAULT) }
+                Dest.ODYSSEY -> dev.phonerecall.odyssey.OdysseyScreen(wide, gutter, pinsEditor = { back -> dev.phonerecall.mind.PlacesScreen(vm.brain, gutter, back) }) { go(Dest.VAULT) }
                 Dest.HEALTH -> dev.phonerecall.iaso.IasoScreen(wide, gutter)
-                Dest.DEVICES -> dev.phonerecall.hestia.HestiaScreen(wide, gutter)
+                Dest.DEVICES -> dev.phonerecall.hestia.HestiaScreen(wide, gutter) { draft -> dev.phonerecall.brain.ChatSeed.text = draft; go(Dest.DELPHI) }
                 Dest.SETTINGS -> SettingsScreen(vm, gutter, go)
                 Dest.USAGE -> {
                     val m by vm.brain.mind.collectAsStateWithLifecycle()
@@ -242,6 +249,7 @@ fun Shell(vm: AthenaViewModel, wide: Boolean, hinge: Hinge?) {
                 BottomBar(dest, go) { destName = MORE }
             }
         }
+        if (gen.active && gen.stage == dev.phonerecall.fresh.Stage.SPLASH) dev.phonerecall.fresh.GenesisSplash { genesis.finish() }
     }
 }
 

@@ -51,7 +51,8 @@ object SecureClipboard {
  * instance. Agents get [tools] only. Call the IO methods off the main thread.
  */
 class VaultCore private constructor(private val app: Context) {
-    val db = VaultDb(app, KeystoreSealer("zeus.aegis.vault"))
+    // Calypso keeps the Keystore-direct format: its sealing stays exactly as it was.
+    val db = VaultDb(app, KeystoreSealer(ALIAS, envelope = false))
     val calypso = Calypso(db, KeystoreBoxKeys())
     val aegis = Aegis(db)
     val tools = VaultTools(calypso.drop, aegis)
@@ -75,6 +76,8 @@ class VaultCore private constructor(private val app: Context) {
     }
 
     companion object {
+        /** Calypso's store key (no fingerprint; the shelves' own keys are separate). */
+        const val ALIAS = "zeus.aegis.vault"
         @Volatile private var instance: VaultCore? = null
         fun get(context: Context): VaultCore = instance ?: synchronized(this) {
             instance ?: VaultCore(context.applicationContext).also { instance = it }

@@ -58,6 +58,11 @@ object Money {
         return out.mapValues { it.value.coerceAtLeast(0) }.filterValues { it > 0 }
     }
 
+    /** Net spend in [from, to): purchases minus refunds, never below zero. */
+    fun net(txns: List<Txn>, from: Long, to: Long): Long = txns.filter { it.counted && it.at in from until to }.sumOf {
+        when (it.kind) { TxnKind.SPEND -> it.cents; TxnKind.REFUND -> -it.cents; else -> 0L }
+    }.coerceAtLeast(0)
+
     /** One month by category, against the last three months ("usual") and his budgets. */
     fun month(txns: List<Txn>, month: YearMonth, zone: ZoneId, budgets: Map<Category, Long>): MonthView {
         val now = spend(txns, month, zone)

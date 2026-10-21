@@ -59,7 +59,7 @@ class TeleteShots {
         checks = Telete.checks(TeleteFixtures.partway, TeleteFixtures.NOW),
         tests = tests,
         testWhat = mapOf(
-            "athena" to "Sends Delphi's model a one-word ping and shows the reply", "iris" to "Asks Iris one harmless read-only question",
+            "athena" to "Sends Anthropic a one-word ping with your key and shows the reply", "iris" to "Asks Iris one harmless read-only question",
             "alexandria" to "Searches the index for \"flight\"", "spotify" to "Reads what is playing now", "hestia" to "Lists the devices Google Home shares",
             "odyssey-fix" to "Gets one location fix", "weather" to "Fetches the forecast for home", "tomtom" to "Times the drive from home to the office",
             "moneta" to "Parses a sample bank notification, offline", "hermes" to "Parses \"set alarm 6:30\" without setting it",

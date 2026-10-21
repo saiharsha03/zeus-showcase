@@ -39,9 +39,16 @@ class AndroidExecutor(
     private val schedules: ((Map<String, String>) -> String)? = null,
     /** Argo: a confirmed trip list from Athena. */
     private val trips: ((Map<String, String>) -> String)? = null,
+    /** Prometheus: a confirmed Build card becomes the normal build request. */
+    private val builds: ((Map<String, String>) -> String)? = null,
+    /** A spawned task may spend more (mind/Tasks.kt). */
+    private val taskBudget: ((Map<String, String>) -> String)? = null,
 ) : StepExecutor {
 
-    override fun run(step: Step): ExecResult {
+    /** What he did through Zeus feeds the learned shortcuts (music, alarms, Hestia), once it worked. */
+    override fun run(step: Step): ExecResult = exec(step).also { runCatching { dev.phonerecall.shortcuts.ShortcutsCore.acted(context, step) } }
+
+    private fun exec(step: Step): ExecResult {
         val p = step.payload
         return when (step.kind) {
             ProposalKind.SET_ALARM -> {
@@ -130,6 +137,13 @@ class AndroidExecutor(
             ProposalKind.BOOKMARK_FOR -> ExecResult(step.summary, mapOf("bookmark_id" to "${dev.phonerecall.rhythms.Rhythms.bookmark(context, p.getValue("person"), p.getValue("note"))}"))
             ProposalKind.SET_SCHEDULE -> ExecResult((schedules ?: error("Athena's mind isn't set up")).invoke(p))
             ProposalKind.SET_TRIPS -> ExecResult((trips ?: error("Argo isn't set up")).invoke(p))
+            ProposalKind.TASK_BUDGET -> ExecResult((taskBudget ?: error("Athena's mind isn't set up")).invoke(p))
+            ProposalKind.LEARN_SHORTCUT -> dev.phonerecall.shortcuts.ShortcutsCore.accept(context, p).let { (words, id) -> ExecResult(words, mapOf("rule" to id)) }
+            ProposalKind.SET_ROUTINE -> dev.phonerecall.hestia.HestiaRoutines.apply(context, p).let { (words, undo) -> ExecResult(words, undo) }
+            ProposalKind.IDEA -> if (p["action"] != null) dev.phonerecall.shortcuts.ShortcutsCore.accept(context, p).let { (words, id) -> ExecResult(words, mapOf("rule" to id)) }
+                else ExecResult(dev.phonerecall.shortcuts.ShortcutsCore.draft(context, p))
+            // A request can't be unsent; stopping it is Prometheus's Stop.
+            ProposalKind.BUILD_APP -> ExecResult((builds ?: error("Prometheus isn't set up")).invoke(p))
             ProposalKind.SWITCH_MODEL -> {
                 val f = dev.phonerecall.models.Features.of(p.getValue("feature")) ?: error("Not a feature with a model")
                 val before = dev.phonerecall.models.ModelChoice.book.set(f, p.getValue("model"))
@@ -162,6 +176,8 @@ class AndroidExecutor(
             ProposalKind.BOOKMARK_FOR -> { dev.phonerecall.rhythms.Rhythms.removeBookmark(context, u.getValue("bookmark_id").toLong()); true }
             ProposalKind.ADD_AUTO_APPROVE -> ProposalKind.of(u.getValue("kind"))?.let { hands?.setAuto(it, false); hands != null } ?: false
             ProposalKind.SWITCH_MODEL -> dev.phonerecall.models.Features.of(u.getValue("feature"))?.let { dev.phonerecall.models.ModelChoice.book.set(it, u.getValue("before")); true } ?: false
+            ProposalKind.LEARN_SHORTCUT, ProposalKind.IDEA -> { dev.phonerecall.shortcuts.ShortcutsCore.undo(context, u.getValue("rule")); true }
+            ProposalKind.SET_ROUTINE -> dev.phonerecall.hestia.HestiaRoutines.restore(context, u)
             ProposalKind.SET_ALARM -> {
                 // Asks the clock app to dismiss the matching alarm; some clock apps show their own picker.
                 start(Intent(AlarmClock.ACTION_DISMISS_ALARM).apply {

@@ -111,7 +111,7 @@ class Oneiroi private constructor(private val app: Context) {
         if (mark in kv.strings(REFLECTED)) return ReflectOutcome(skipped = "already reflected")
         val said = said(chat)
         synchronized(lock) { sweep.run(said) }
-        val out = synchronized(lock) { reflector.reflect("Delphi", said) }
+        val out = synchronized(lock) { reflector.reflect("Chat", said) }
         if (out.skipped == null || out.skipped == "nothing he said") kv.putStrings(REFLECTED, (kv.strings(REFLECTED) + mark).takeLast(200))
         after("reflected a chat", out)
         return out

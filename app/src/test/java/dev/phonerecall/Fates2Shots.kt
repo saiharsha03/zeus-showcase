@@ -176,7 +176,7 @@ class Fates2Shots {
     )
     private val lemnos = LemnosState(pairing = DeviceKeys.State.PAIRED, online = true, agents = agents, jobs = jobs, chat = mapOf("iris" to chat), syncedAt = now)
     private val athena = listOf(
-        LongJob("a1", "Research winter tires for the Civic", startedAt = now - 31 * h, status = "progress"),
+        LongJob("a1", "Research winter tires for the Mazda 3", startedAt = now - 31 * h, status = "progress"),
         LongJob("a2", "Compare renters insurance quotes", startedAt = now - 50 * h, status = "done"),
         LongJob("a3", "Watch for the passport appointment slot", startedAt = now - 4 * h, status = "started"),
     )

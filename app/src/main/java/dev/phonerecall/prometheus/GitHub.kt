@@ -3,6 +3,7 @@ package dev.phonerecall.prometheus
 import com.fasterxml.jackson.databind.JsonNode
 import dev.phonerecall.brain.FieldCat
 import dev.phonerecall.brain.NetGate
+import dev.phonerecall.brain.TlsGuard
 import dev.phonerecall.brain.Outbound
 import dev.phonerecall.clio.Clio
 import dev.phonerecall.mind.stateJson
@@ -67,6 +68,7 @@ object GitHubJson {
 class GitHubApi(private val token: () -> String?, private val base: String = "https://api.github.com") : GitHub {
     private val repo = "/repos/${Repo.OWNER}/${Repo.NAME}"
     private val client = OkHttpClient.Builder()
+        .sslSocketFactory(TlsGuard.sslSocketFactory, TlsGuard.trustManager)
         .addInterceptor(NetGate.okHttp)
         .followRedirects(false).followSslRedirects(false)
         .connectTimeout(20, TimeUnit.SECONDS).readTimeout(60, TimeUnit.SECONDS)

@@ -106,7 +106,7 @@ class MetronTest {
         val circle = mapOf(Metis.THREAD to 800L, Protege.PERSEUS.agentName to 500L, Protege.ANNABETH.agentName to 1_000L)
         val b = MetronBudget.of(spend, circle, LiveLedger("2026-10-11", inSeconds = 600, outSeconds = 300), oct11)
         val by = b.lines.associate { it.label to it.micros }
-        assertEquals(15_000_000L, by["Delphi"])
+        assertEquals(15_000_000L, by["Quick calls"])
         assertEquals(12_000_000L, by["Athena's mind"])
         assertEquals(5_000_000L, by["Perseus"])
         assertEquals(10_000_000L, by["Annabeth"])

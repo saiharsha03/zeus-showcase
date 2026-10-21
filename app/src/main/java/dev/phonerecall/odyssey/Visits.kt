@@ -31,9 +31,11 @@ object Visits {
 
     fun tracking(d: OdysseyData) = d.settings.on && !d.settings.paused
 
-    /** The named place this fix is at, if any (within [SAME_PLACE_M]). */
-    fun known(d: OdysseyData, f: Fix): KnownPlace? =
-        d.places.filter { it.name.isNotBlank() }.map { it to Geo.meters(it.lat, it.lng, f.lat, f.lng) }.filter { it.second < SAME_PLACE_M }.minByOrNull { it.second }?.first
+    /** A geofence exit starts the drive itself when Odyssey tracks drives and no drive is under way. */
+    fun startOnExit(d: OdysseyData) = tracking(d) && d.settings.driveReport && !d.driving
+
+    /** The named place this fix is at, if any (the same reach as [placeFor]). */
+    fun known(d: OdysseyData, f: Fix): KnownPlace? = placeFor(d.places.filter { it.name.isNotBlank() }, f.lat, f.lng, f.accuracy)
 
     /** One transition. `needFix` asks the caller for one fix, then [fix]. */
     fun activity(d: OdysseyData, act: Act, at: Long): Outcome {
@@ -94,9 +96,17 @@ object Visits {
     private fun List<Visit>.takeLastDays(now: Long) = filter { now - it.end < KEEP_DAYS * DAY }
 
     /** The place this stay belongs to: the nearest known one within reach, or a new one. Names it if it can. */
+    /**
+     * The known place a fix belongs to: the nearest within 120 m (or the fix's accuracy), and Home and the office
+     * within 150 m, since one house or building gives fixes from either side of it (the learner clusters at 150 m too).
+     */
+    fun placeFor(places: List<KnownPlace>, lat: Double, lng: Double, accuracy: Float): KnownPlace? {
+        fun reach(p: KnownPlace) = max(if (p.kind == Kind.HOME || p.kind == Kind.WORK) PlaceLearner.CLUSTER_M else SAME_PLACE_M, accuracy.toDouble())
+        return places.filter { Geo.meters(it.lat, it.lng, lat, lng) < reach(it) }.minByOrNull { Geo.meters(it.lat, it.lng, lat, lng) }
+    }
+
     fun assign(places: List<KnownPlace>, s: OpenStay, newId: () -> String): Pair<List<KnownPlace>, KnownPlace> {
-        val reach = max(SAME_PLACE_M, s.accuracy.toDouble())
-        val near = places.minByOrNull { Geo.meters(it.lat, it.lng, s.lat, s.lng) }?.takeIf { Geo.meters(it.lat, it.lng, s.lat, s.lng) < reach }
+        val near = placeFor(places, s.lat, s.lng, s.accuracy)
         val named = Naming.pick(near, s)
         // TomTom's category when the name is TomTom's; otherwise what the name says.
         val kindOf = if (named.second == NameSource.POI) s.poiKind ?: near?.kind?.takeIf { it != Kind.OTHER } ?: Naming.kind(named.first) else Naming.kind(named.first)
@@ -368,5 +378,118 @@ object MapsLink {
         val address = lines.drop(1).firstOrNull { l -> l.any { it.isDigit() } && l.contains(',') }
         if (lat != null && (abs(lat) > 90 || abs(lng ?: 0.0) > 180)) return null
         return Shared(name, lat, lng, address)
+    }
+}
+
+/** A place he pinned himself in Places (Themis), the same circle its arrival geofence uses. */
+data class Pin(val name: String, val lat: Double, val lng: Double, val radius: Float)
+
+/**
+ * His pins are the one truth for where a fix is: when a fix lies inside a pin, Odyssey uses the matching
+ * place (same name, or "Home"/"Office" for its roles), so the stay, the timeline and the arrival notification
+ * agree. A Home or Office pin with no such place in Odyssey becomes one, as his.
+ */
+object Pins {
+    private val HOME = setOf("home", "house", "my home")
+    private val WORK = setOf("office", "work", "my office")
+
+    fun kindOf(pin: Pin): Kind? = pin.name.trim().lowercase().let { if (it in HOME) Kind.HOME else if (it in WORK) Kind.WORK else null }
+
+    /** The pin a fix is inside, nearest first. */
+    fun at(pins: List<Pin>, lat: Double, lng: Double): Pin? =
+        pins.filter { Geo.meters(it.lat, it.lng, lat, lng) <= it.radius }.minByOrNull { Geo.meters(it.lat, it.lng, lat, lng) }
+
+    /** Odyssey's place for a pin: the same name, or the role the pin's name says; made from the pin when missing. */
+    fun place(d: OdysseyData, pin: Pin): Pair<OdysseyData, KnownPlace?> {
+        val kind = kindOf(pin)
+        d.places.firstOrNull { it.name.equals(pin.name.trim(), true) || (kind != null && it.kind == kind) }?.let { return d to it }
+        if (kind == null) return d to null
+        val p = KnownPlace("k${d.nextId}", if (kind == Kind.HOME) "Home" else "Office", NameSource.HIM, kind, pin.lat, pin.lng)
+        // A role elsewhere goes back to what its name says: his pin is the one.
+        val others = d.places.map { if (it.kind == kind) it.copy(kind = Naming.kind(it.name), learned = false) else it }
+        return d.copy(places = others + p, nextId = d.nextId + 1) to p
+    }
+
+    /** The learned place a pin is (same name or role, or the nearest inside its circle), for the one list in Odyssey › Places. */
+    fun learnedFor(d: OdysseyData, pin: Pin): KnownPlace? {
+        val kind = kindOf(pin)
+        return d.places.firstOrNull { it.name.equals(pin.name.trim(), true) || (kind != null && it.kind == kind) }
+            ?: d.places.filter { Geo.meters(it.lat, it.lng, pin.lat, pin.lng) <= pin.radius }.minByOrNull { Geo.meters(it.lat, it.lng, pin.lat, pin.lng) }
+    }
+
+    /** The fix as Odyssey should use it: moved onto its place's centre when it is inside one of his pins. */
+    fun snap(d: OdysseyData, pins: List<Pin>, f: Fix): Pair<OdysseyData, Fix> {
+        val pin = at(pins, f.lat, f.lng) ?: return d to f
+        val (d2, p) = place(d, pin)
+        return d2 to (p?.let { f.copy(lat = it.lat, lng = it.lng) } ?: f)
+    }
+
+    private const val KEEP_MS = 14 * 86_400_000L
+
+    /**
+     * A pin entered or left. Leaving ends the stay there (the timeline shows the time away even when no drive
+     * was noted); arriving with no stay open and no drive under way opens one at the pin's place.
+     */
+    fun event(d: OdysseyData, pin: Pin, left: Boolean, at: Long): OdysseyData {
+        val (d1, p) = place(d, pin)
+        var x = d1.copy(pinEvents = (d1.pinEvents + PinEvent(at, p?.name ?: pin.name, p?.kind ?: kindOf(pin), left)).filter { at - it.at < KEEP_MS })
+        val s = x.stay
+        if (left && s != null && !x.driving && Geo.meters(pin.lat, pin.lng, s.lat, s.lng) <= pin.radius + Visits.SAME_PLACE_M) x = Visits.close(x, at).data
+        if (!left && x.stay == null && !x.driving && p != null) x = x.copy(stay = OpenStay(at, p.lat, p.lng, 20f, street = p.street), walkStart = 0)
+        return x
+    }
+
+    /**
+     * Tonight's (10-20) gap, from Clio's places lines when the pin events weren't kept yet: the open stay sits
+     * at Home inside his Home pin, Clio says a pin was left and then entered after it began, and no drive covers
+     * that time. The stay ends at the leave and a new one opens at the arrival. Clio's names are sanitized, so
+     * the Home pin is taken to be the one (the stay is inside it).
+     */
+    fun backfill(d: OdysseyData, pins: List<Pin>, clio: List<Pair<Long, Boolean>>): OdysseyData {
+        val s = d.stay ?: return d
+        val home = pins.firstOrNull { kindOf(it) == Kind.HOME && Geo.meters(it.lat, it.lng, s.lat, s.lng) <= it.radius + Visits.SAME_PLACE_M } ?: return d
+        val leave = clio.filter { it.second && it.first > s.start }.minByOrNull { it.first }?.first ?: return d
+        val back = clio.filter { !it.second && it.first > leave }.minByOrNull { it.first }?.first ?: return d
+        if (d.drives.any { it.start < back && it.end > leave } || d.pinEvents.any { kotlin.math.abs(it.at - leave) < 120_000L || kotlin.math.abs(it.at - back) < 120_000L }) return d
+        return event(event(d, home, true, leave), home, false, back)
+    }
+
+    /** Heals an open stay that a pin says is a known place (a stay at home once showed as "Near <street>"). */
+    fun heal(d: OdysseyData, pins: List<Pin>): OdysseyData {
+        val s = d.stay ?: return d
+        val pin = at(pins, s.lat, s.lng) ?: return d
+        val (d2, p) = place(d, pin)
+        if (p == null || (p.lat == s.lat && p.lng == s.lng)) return d2
+        return d2.copy(stay = s.copy(lat = p.lat, lng = p.lng))
+    }
+}
+
+/**
+ * The day's drives for the timeline: each trip with its drive (by id, else the drive that overlaps it), and
+ * the drives no trip covers yet. A trip is only made when the next stay closes, so the drive home shows
+ * from the moment it ends, not when he next leaves.
+ */
+object Timeline {
+    private const val SLACK = 2 * 60_000L
+
+    /** Time away between two stays that no drive covers, 10 minutes or more: shown as "Away, drive not recorded". */
+    fun gaps(d: OdysseyData, from: Long, to: Long): List<Pair<Long, Long>> {
+        val stays = (d.visits.filter { it.start < to && it.end > from }.map { it.start to it.end } + listOfNotNull(d.stay?.takeIf { it.start < to }?.let { it.start to Long.MAX_VALUE })).sortedBy { it.first }
+        val drives = drives(d, from, to)
+        return stays.zipWithNext().map { (a, b) -> a.second to b.first }.filter { (a, b) -> b - a >= 10 * 60_000L && drives.none { (t, _) -> t.start < b && t.end > a } }
+    }
+
+    fun drives(d: OdysseyData, from: Long, to: Long): List<Pair<Trip, DriveReport?>> {
+        fun overlap(t: Trip, r: DriveReport) = minOf(t.end + SLACK, r.end) - maxOf(t.start - SLACK, r.start)
+        val trips = d.trips.filter { it.start < to && it.end > from }
+        val used = HashSet<String>()
+        val linked = trips.sortedBy { it.start }.map { t ->
+            val r = d.drives.firstOrNull { it.id == t.driveId } ?: d.drives.filter { it.id !in used && overlap(t, it) > 0 }.maxByOrNull { overlap(t, it) }
+            r?.let { used += it.id }
+            t to r
+        }
+        val loose = d.drives.filter { it.start < to && it.end > from && it.id !in used && trips.none { t -> overlap(t, it) > 0 } }
+            .map { r -> Trip("drive-${r.id}", null, null, r.start, r.end, r.id) to r }
+        return (linked + loose).sortedBy { it.first.start }
     }
 }

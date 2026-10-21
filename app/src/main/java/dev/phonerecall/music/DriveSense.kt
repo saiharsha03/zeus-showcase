@@ -74,6 +74,8 @@ class DriveReceiver : BroadcastReceiver() {
             }
         }
         val last = r.transitionEvents.lastOrNull { it.activityType == DetectedActivity.IN_VEHICLE }
+        // Every vehicle transition in Clio: the first thing to read when a drive goes missing.
+        if (last != null) dev.phonerecall.clio.Clio.info("odyssey", "vehicle " + if (last.transitionType == ActivityTransition.ACTIVITY_TRANSITION_ENTER) "enter" else "exit")
         val done = goAsync()
         Thread {
             try {

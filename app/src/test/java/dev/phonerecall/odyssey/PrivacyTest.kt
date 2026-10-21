@@ -55,7 +55,8 @@ class PrivacyTest {
         for ((f, s) in src) for (bad in listOf("haiku()", "CloudModel", ".complete(", "Anthropic", "upload")) assertFalse("$f mentions $bad", s.contains(bad))
         // And the brain's own code never reads Odyssey's store.
         val brainSide = File(System.getProperty("user.dir"), "src/main/java/dev/phonerecall").walk().filter { it.extension == "kt" && (it.path.contains("${File.separator}brain${File.separator}") || it.path.contains("${File.separator}mind${File.separator}")) }
-        for (f in brainSide) assertFalse("${f.name} reads OdysseyStore", f.readText().contains("OdysseyStore"))
+        // Except read_zeus's reader: the owner chose (2026-10-20) that Athena reads all of Zeus but Calypso, places and coordinates included.
+        for (f in brainSide.filter { it.name != "ZeusAreas.kt" }) assertFalse("${f.name} reads OdysseyStore", f.readText().contains("OdysseyStore"))
     }
 
     /** Routes stay in Odyssey's screens: nothing outside odyssey/ (Athena, Delphi, tools, backups) names them, and the brain's facts never read them. */

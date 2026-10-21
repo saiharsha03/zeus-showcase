@@ -20,11 +20,27 @@ interface Sealer {
     fun open(sealed: String): String?
     fun sealBytes(plain: ByteArray): ByteArray
     fun openBytes(sealed: ByteArray): ByteArray?
+    /** False when the value is in an older format and worth sealing again (see [KeystoreSealer]). */
+    fun current(sealed: String): Boolean = true
 }
 
-/** AES-256-GCM with a Keystore key (StrongBox when the phone has it). IV is stored in front of the ciphertext. */
-class KeystoreSealer(private val alias: String = "zeus.aegis.senses") : Sealer {
+/**
+ * AES-256-GCM. With [envelope] (the default, once [SealKeys.dir] is set): an [Envelope] data key in software,
+ * wrapped by the alias's Keystore key (StrongBox when the phone has it). Values sealed before that (the Keystore
+ * key directly, IV in front of the ciphertext) still open, and stores rewrite them once (`reseal`).
+ * `envelope = false` keeps the Keystore-direct format for every seal (Calypso's vault).
+ */
+class KeystoreSealer(private val alias: String = "zeus.aegis.senses", private val envelope: Boolean = true) : Sealer {
     @Volatile private var key: SecretKey? = null
+
+    /** The alias's Keystore key used directly: wraps data keys, opens old values. */
+    private val direct = object : Sealer {
+        override fun seal(plain: String) = throw UnsupportedOperationException()
+        override fun open(sealed: String) = throw UnsupportedOperationException()
+        override fun sealBytes(plain: ByteArray) = directSeal(plain)
+        override fun openBytes(sealed: ByteArray) = directOpen(sealed)
+    }
+    private val env: Envelope? by lazy { if (envelope) SealKeys.envelope(alias, direct) else null }
 
     private fun key(): SecretKey {
         key?.let { return it }
@@ -49,28 +65,44 @@ class KeystoreSealer(private val alias: String = "zeus.aegis.senses") : Sealer {
         }
     }
 
-    override fun sealBytes(plain: ByteArray): ByteArray {
+    private fun directSeal(plain: ByteArray): ByteArray {
         val c = Cipher.getInstance(TRANSFORM)
         c.init(Cipher.ENCRYPT_MODE, key())
         return c.iv + c.doFinal(plain)
     }
 
-    override fun openBytes(sealed: ByteArray): ByteArray? = try {
+    private fun directOpen(sealed: ByteArray): ByteArray? = try {
         val c = Cipher.getInstance(TRANSFORM)
         c.init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(128, sealed, 0, IV))
         c.doFinal(sealed, IV, sealed.size - IV)
     } catch (_: Exception) { null }
 
+    override fun sealBytes(plain: ByteArray): ByteArray = env?.seal(plain) ?: directSeal(plain)
+
+    // An old value's random IV can start like an envelope header (1 in 65,536): when the envelope can't open it, the Keystore tries.
+    override fun openBytes(sealed: ByteArray): ByteArray? = env?.open(sealed) ?: directOpen(sealed)
+
+    override fun current(sealed: String): Boolean {
+        val e = env ?: return true
+        return runCatching { Base64.decode(sealed, Base64.NO_WRAP) }.getOrNull()?.let { e.current(it) } ?: true
+    }
+
+    /** A new data key for new seals (old values keep opening with theirs). */
+    fun rotate() { env?.rotate() }
+
     /**
      * Each Keystore decrypt is a binder call (slower still on StrongBox), and lists like people() open every row
      * on every read. A sealed string never changes (a fresh IV per seal), so its plain text is cached by the
      * sealed text itself, in memory only and briefly: an entry lasts 15 minutes (enough to absorb a burst of
-     * reads), and the whole cache is dropped when the system asks the app to trim memory.
+     * reads), counted from its last use, so rows the workers read every few minutes stay open while unused ones
+     * expire. On StrongBox one decrypt is tens of ms: a cold people() of ~1,400 rows cost a sync about 50 s and
+     * held the Keystore up for everything else (taps included). The cache is dropped when the system is short of memory.
      */
     private val opened get() = SealCache.entries
 
     private fun cached(sealed: String): String? = opened.get(sealed)?.let { (plain, at) ->
-        if (android.os.SystemClock.elapsedRealtime() - at < TTL_MS) plain else { opened.remove(sealed); null }
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (now - at < TTL_MS) plain.also { opened.put(sealed, it to now) } else { opened.remove(sealed); null }
     }
 
     private fun remember(sealed: String, plain: String) { opened.put(sealed, plain to android.os.SystemClock.elapsedRealtime()) }
@@ -92,5 +124,16 @@ class KeystoreSealer(private val alias: String = "zeus.aegis.senses") : Sealer {
 /** The opened-text cache all KeystoreSealers share (keys are sealed strings, unique per seal), so one call can drop it. */
 object SealCache {
     internal val entries = android.util.LruCache<String, Pair<String, Long>>(8192)
-    fun forget() = entries.evictAll()
+    /** Opened text and the plain data keys. */
+    fun forget() { entries.evictAll(); SealKeys.forget() }
+}
+
+/** Where the wrapped data keys live (no-backup storage, set at process start) and the envelopes in use, one per alias. */
+object SealKeys {
+    @Volatile var dir: java.io.File? = null
+    private val envelopes = HashMap<String, Envelope>()
+
+    fun envelope(alias: String, wrap: Sealer): Envelope? = dir?.let { d -> synchronized(envelopes) { envelopes.getOrPut(alias) { Envelope(wrap, java.io.File(d, "$alias.keys")) } } }
+
+    fun forget() = synchronized(envelopes) { envelopes.values.forEach { it.forget() } }
 }

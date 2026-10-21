@@ -47,7 +47,10 @@ object DriveInsights {
     /** Home to the office or back is a commute; any other drive on a day at the office is an office day; 50 mi or more is a trip. */
     fun autoTag(d: OdysseyData, r: DriveReport, zone: ZoneId = ZoneId.systemDefault()): TripTag {
         val t = tripOf(d, r)
-        val from = d.place(t?.from)?.kind; val to = d.place(t?.to)?.kind
+        // No trip yet (the stay it ended at is still open): the visit it left and the stay it reached.
+        val left = d.visits.lastOrNull { it.end in (r.start - 15 * 60_000L)..(r.start + 5 * 60_000L) }?.placeId
+        val reached = d.stay?.takeIf { it.start in (r.end - 5 * 60_000L)..(r.end + 15 * 60_000L) }?.let { Visits.placeFor(d.places, it.lat, it.lng, it.accuracy)?.id }
+        val from = d.place(t?.from ?: left)?.kind; val to = d.place(t?.to ?: reached)?.kind
         if ((from == Kind.HOME && to == Kind.WORK) || (from == Kind.WORK && to == Kind.HOME)) return TripTag.COMMUTE
         // Arriving at the office in the morning, or leaving it in the afternoon, by the trip or the office geofence.
         val endHour = Instant.ofEpochMilli(r.end).atZone(zone).hour; val startHour = Instant.ofEpochMilli(r.start).atZone(zone).hour

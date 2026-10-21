@@ -9,7 +9,7 @@ class IgnoredSendersTest {
         assertTrue(AppKinds.ignoredSender("Temu", "Your order shipped"))
         assertTrue(AppKinds.ignoredSender("Lightning deals", "Temu: 90% off"))
         assertFalse(AppKinds.ignoredSender("Chase", "Your statement is ready"))
-        assertFalse(AppKinds.ignoredSender("Temukin Rao", "Lunch?"))
+        assertFalse(AppKinds.ignoredSender("Temukin Kumar", "Lunch?"))
         assertTrue("com.einnovation.temu" in AppKinds.IGNORED)
     }
 }

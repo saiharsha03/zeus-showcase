@@ -108,6 +108,8 @@ class ClioCrashHandler(private val previous: Thread.UncaughtExceptionHandler?, p
  * workers, alexandria, audit, ui, crash, chronos (Google Calendar birthdays), setup (Telete's checks and self-tests), device, places.
  */
 object Clio {
+    /** Areas whose entries carry a main-thread stack: ANRs and crashes, and the watchdog's stalls. */
+    val STACK_AREAS = setOf("crash", "ui")
     @Volatile private var log: ClioLog? = null
     /** Refreshed with his people's labels and Calypso's names by the mind's workers. */
     @Volatile var clean: Sanitizer = Sanitizer()

@@ -328,6 +328,12 @@ fun OlympiaSettingsContent(st: OlympiaSettings, gutter: Dp, kicker: String, back
                 val on = comp in st.competitions
                 Toggle(comp.label, null, on, onWord = "Shown", offWord = "Hidden") { edit { s -> s.copy(competitions = if (on) s.competitions - comp else s.competitions + comp) } }
             }
+            item { Zone("Big matches") }
+            for (sport in listOf(Sport.SOCCER, Sport.NFL)) item(key = "b-${sport.name}") {
+                val on = sport in st.big
+                val about = if (sport == Sport.SOCCER) "Finals and the great derbies, when you follow a team in football" else "Playoffs and the Super Bowl, when you follow an NFL team"
+                Toggle(sport.word, about, on, onWord = "Shown", offWord = "Hidden") { edit { s -> s.copy(big = if (on) s.big - sport else s.big + sport) } }
+            }
             item {
                 Toggle("Formula 1 practice", "Practice sessions in Olympia, Chronos and the live score", st.practice, onWord = "Shown", offWord = "Hidden") { edit { it.copy(practice = !it.practice) } }
             }

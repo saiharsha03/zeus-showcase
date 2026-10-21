@@ -95,16 +95,29 @@ class OdysseyCallbacks(
     val onLease: (Lease) -> Unit = {}, val onAskIris: () -> Unit = {}, val onDeleteRoute: (String) -> Unit = {},
     val onTag: (String, TripTag?) -> Unit = { _, _ -> },
     /** Place questions (Learn.kt): yes/no (Keep/Undo when applied on its own), his own kind and name, ignore. */
+    val onEditPins: () -> Unit = {},
     val onGuess: (String, Boolean) -> Unit = { _, _ -> }, val onGuessKind: (String, Kind, String?) -> Unit = { _, _, _ -> }, val onGuessIgnore: (String) -> Unit = {},
 )
 
 private val TABS = listOf("Timeline", "Places", "Habits", "Logs", "Drives", "Car")
+
+/** Themis › Places opens Odyssey › Places (the one list of his places): set, then navigate to Odyssey. */
+object PlacesNav {
+    @Volatile var open = false
+    fun take(): Boolean = open.also { open = false }
+}
 private val DAY = DateTimeFormatter.ofPattern("EEE, MMM d", Locale.US)
 private val TIME = DateTimeFormatter.ofPattern("h:mm a", Locale.US)
 
 /** Odyssey: his own timeline, on the phone only. Visits and trips by day, places, habits, logs and drives. */
 @Composable
-fun OdysseyScreen(wide: Boolean, gutter: Dp, openVault: () -> Unit) {
+fun OdysseyScreen(wide: Boolean, gutter: Dp, pinsEditor: (@Composable (back: () -> Unit) -> Unit)? = null, openVault: () -> Unit) {
+    var editPins by rememberSaveable { mutableStateOf(false) }
+    if (editPins && pinsEditor != null) {
+        androidx.activity.compose.BackHandler { editPins = false }
+        pinsEditor { editPins = false }
+        return
+    }
     val ctx = LocalContext.current.applicationContext
     val scope = rememberCoroutineScope()
     val d by OdysseyStore.state.collectAsStateWithLifecycle()
@@ -112,11 +125,15 @@ fun OdysseyScreen(wide: Boolean, gutter: Dp, openVault: () -> Unit) {
     var perms by remember { mutableStateOf(Perms()) }
     var sections by remember { mutableStateOf<List<Pair<Long, String>>>(emptyList()) }
     var message by remember { mutableStateOf<String?>(null) }
+    var pins by remember { mutableStateOf<List<dev.phonerecall.places.Place>>(emptyList()) }
+    var pinHere by remember { mutableStateOf<String?>(null) }
     val read = {
         scope.launch {
             perms = withContext(Dispatchers.IO) {
                 OdysseyStore.load(ctx)
                 RouteStore.load(ctx)
+                runCatching { dev.phonerecall.places.PlaceStore(ctx).let { s -> pins = s.all(); pinHere = s.current() } }
+                runCatching { Odyssey.heal(ctx) }
                 runCatching { Odyssey.learn(ctx) }
                 sections = BrainCore.get(ctx).sections.visible().map { it.id to it.name }
                 Perms(Odyssey.canFine(ctx), Odyssey.canBackground(ctx), Odyssey.canActivity(ctx), Odyssey.canUsage(ctx), tomTomKey(ctx).has(), ny511Key(ctx).has())
@@ -152,11 +169,12 @@ fun OdysseyScreen(wide: Boolean, gutter: Dp, openVault: () -> Unit) {
         onAskIris = { io { Garage.reaskLease(ctx) } },
         onDeleteRoute = { id -> io { RouteStore.delete(ctx, id) } },
         onTag = { id, t -> io { Odyssey.tagDrive(ctx, id, t) } },
+        onEditPins = { editPins = true },
         onGuess = { id, yes -> io { Odyssey.answerGuess(ctx, id, yes) } },
         onGuessKind = { id, k, name -> io { Odyssey.relabelGuess(ctx, id, k, name) } },
         onGuessIgnore = { id -> io { Odyssey.ignoreGuess(ctx, id) } },
     )
-    OdysseyContent(d, sections, perms, ZonedDateTime.now(), gutter, wide, cb, message, routes = routes)
+    OdysseyContent(d, sections, perms, ZonedDateTime.now(), gutter, wide, cb, message, routes = routes, pins = pins, pinHere = pinHere)
 }
 
 @Composable
@@ -165,9 +183,11 @@ fun OdysseyContent(
     cb: OdysseyCallbacks, message: String? = null, startTab: Int = 0,
     /** Kept drive routes by drive id (RouteStore); `online` off draws maps without tiles (previews). */
     routes: Map<String, DriveRoute> = emptyMap(), online: Boolean = true, openDrive: String? = null,
+    /** His pins from Themis › Places (stores with lists, Home), shown in the same list as the learned places. */
+    pins: List<dev.phonerecall.places.Place> = emptyList(), pinHere: String? = null,
 ) {
     val c = Athena.colors
-    var tab by rememberSaveable { mutableStateOf(if (CarNav.take()) 5 else startTab) }
+    var tab by rememberSaveable { mutableStateOf(if (CarNav.take()) 5 else if (PlacesNav.take()) 1 else startTab) }
     Column(Modifier.fillMaxSize()) {
         ScreenHeader(Place.PLACES.title(), gutter, emblem = Place.PLACES, subtitle = Place.PLACES.subtitle()) {
             if (d.settings.on) TextAction(if (d.settings.paused) "Resume" else "Pause tracking", { cb.onPause(!d.settings.paused) }, emphasis = d.settings.paused)
@@ -180,7 +200,7 @@ fun OdysseyContent(
         LazyColumn(contentPadding = PaddingValues(start = gutter, end = gutter, bottom = Space.xxxl), modifier = Modifier.fillMaxWidth().then(if (wide) Modifier.widthIn(max = 720.dp) else Modifier)) {
             when (tab) {
                 0 -> timeline(d, sections, now, cb)
-                1 -> places(d, perms, cb)
+                1 -> places(d, perms, cb, pins, pinHere, sections)
                 2 -> habits(d, ms)
                 3 -> logs(d, now, cb)
                 4 -> drives(d, routes, ms, now.zone, online, cb, openDrive)
@@ -238,7 +258,8 @@ private fun Permission(title: String, about: String, granted: Boolean, can: Bool
 private sealed class Entry(val start: Long) {
     class V(val v: Visit, val p: KnownPlace?) : Entry(v.start)
     class T(val t: Trip, val drive: DriveReport?) : Entry(t.start)
-    class Here(val s: OpenStay) : Entry(s.start)
+    class Here(val s: OpenStay, val p: KnownPlace?) : Entry(s.start)
+    class Away(val from: Long, val to: Long) : Entry(from)
 }
 
 private fun LazyListScope.timeline(d: OdysseyData, sections: List<Pair<Long, String>>, now: ZonedDateTime, cb: OdysseyCallbacks) {
@@ -266,8 +287,9 @@ private fun DayPicker(d: OdysseyData, sections: List<Pair<Long, String>>, now: Z
         }
         val entries = buildList<Entry> {
             d.visits.filter { it.start < to && it.end > from }.forEach { add(Entry.V(it, d.place(it.placeId))) }
-            d.trips.filter { it.start < to && it.end > from }.forEach { t -> add(Entry.T(t, d.drives.firstOrNull { it.id == t.driveId })) }
-            d.stay?.takeIf { it.start < to && date == now.toLocalDate() }?.let { add(Entry.Here(it)) }
+            for (e in Timeline.drives(d, from, to)) add(Entry.T(e.first, e.second))
+            for ((a, b) in Timeline.gaps(d, from, to)) add(Entry.Away(a, b))
+            d.stay?.takeIf { it.start < to && date == now.toLocalDate() }?.let { add(Entry.Here(it, Visits.placeFor(d.places, it.lat, it.lng, it.accuracy))) }
         }.sortedBy { it.start }
         if (entries.isEmpty()) Line(if (date == now.toLocalDate()) "Nothing yet today. Stays of five minutes or more show here." else "Nothing kept for this day.", Type.body, c.ink2, Modifier.padding(vertical = Space.m))
         for ((i, e) in entries.withIndex()) Strip(e, d, zone, first = i == 0, last = i == entries.lastIndex, cb)
@@ -284,7 +306,7 @@ private fun Strip(e: Entry, d: OdysseyData, zone: ZoneId, first: Boolean, last: 
     val rule = c.rule
     val accent = c.accent
     val ink3 = c.ink3
-    val visit = e !is Entry.T
+    val visit = e !is Entry.T && e !is Entry.Away
     Row(Modifier.fillMaxWidth().heightIn(min = if (visit) 64.dp else 44.dp)) {
         Box(
             Modifier.width(28.dp).heightIn(min = if (visit) 64.dp else 44.dp).drawBehind {
@@ -315,8 +337,9 @@ private fun Strip(e: Entry, d: OdysseyData, zone: ZoneId, first: Boolean, last: 
                     "Drive, ${Fmt.minutes(e.t.minutes.coerceAtLeast(1))}" + (e.drive?.let { r -> ", ${Units.mi(r.meters)}, score ${r.score}" } ?: ""),
                     Type.small, c.ink2, maxLines = 1,
                 )
+                is Entry.Away -> Line("Away, ${t(e.from, zone)} to ${t(e.to, zone)} · drive not recorded", Type.small, c.ink3, maxLines = 1)
                 is Entry.Here -> {
-                    Line(e.s.hints.lastOrNull() ?: Naming.fromWifi(e.s.wifi) ?: e.s.poi ?: e.s.street?.let { "Near $it" } ?: "Here now", Type.body.copy(fontWeight = Type.action.fontWeight), c.ink, maxLines = 1)
+                    Line(e.p?.name ?: e.s.hints.lastOrNull() ?: e.s.poiName ?: Naming.fromWifi(e.s.wifi) ?: e.s.poi ?: e.s.street?.let { "Near $it" } ?: "Here now", Type.body.copy(fontWeight = Type.action.fontWeight), c.ink, maxLines = 1)
                     Line("Here since ${t(e.s.start, zone)}", Type.small, c.accentInk)
                 }
             }
@@ -392,12 +415,16 @@ private fun GuessBlock(g: PlaceGuess, cb: OdysseyCallbacks) {
 
 // ---- places ----
 
-private fun LazyListScope.places(d: OdysseyData, p: Perms, cb: OdysseyCallbacks) {
+private fun LazyListScope.places(d: OdysseyData, p: Perms, cb: OdysseyCallbacks, pins: List<dev.phonerecall.places.Place>, pinHere: String?, sections: List<Pair<Long, String>>) {
     item { Kicker("Add a place", Modifier.padding(top = Space.l, bottom = Space.xs)) }
     item { AddPlace(cb) }
-    item { Kicker("Learned", Modifier.padding(top = Space.xl, bottom = Space.xs)) }
-    val list = d.places.sortedWith(compareBy<KnownPlace>({ it.kind != Kind.HOME }, { it.kind != Kind.WORK }, { -it.visits }))
-    if (list.isEmpty()) item { Line("None yet. After a couple of stays, places show here with their names.", Type.body, Athena.colors.ink2) }
+    // One list: his pins (Themis › Places, with their lists) first, each with what Odyssey learned there, then the rest it learned.
+    item { Kicker("Your places", Modifier.padding(top = Space.xl, bottom = Space.xs)) }
+    val matched = pins.associate { it.id to Pins.learnedFor(d, Pin(it.name, it.lat, it.lng, it.radius)) }
+    for (pin in pins) item(key = "pin-${pin.id}") { PinRow(pin, matched[pin.id], pin.id == pinHere, sections, cb) }
+    item { Row { TextAction(if (pins.isEmpty()) "Add a pin with a list" else "Add or edit pins and their lists", cb.onEditPins) } }
+    val list = d.places.filter { pl -> matched.values.none { it?.id == pl.id } }.sortedWith(compareBy<KnownPlace>({ it.kind != Kind.HOME }, { it.kind != Kind.WORK }, { -it.visits }))
+    if (list.isEmpty() && pins.isEmpty()) item { Line("None yet. After a couple of stays, places show here with their names.", Type.body, Athena.colors.ink2) }
     for (pl in list) item(key = "pl-${pl.id}") { PlaceRow(pl, cb) }
     item { Kicker("Settings", Modifier.padding(top = Space.xl, bottom = Space.xs)) }
     item { OdysseySettingsRows(d.settings, p, cb) }
@@ -420,6 +447,27 @@ private fun AddPlace(cb: OdysseyCallbacks) {
             TextAction("Add from link", { if (link.isNotBlank()) { cb.onLink(link); link = "" } }, enabled = link.isNotBlank())
             Line("Read on the phone. Share a place from Maps to Zeus works too.", Type.caption, c.ink3, Modifier.padding(top = Space.m))
         }
+    }
+}
+
+/** One of his pins: its name, "Your pin", the lists it shows on arrival, and what Odyssey learned there. */
+@Composable
+private fun PinRow(pin: dev.phonerecall.places.Place, learned: KnownPlace?, here: Boolean, sections: List<Pair<Long, String>>, cb: OdysseyCallbacks) {
+    val c = Athena.colors
+    Column(Modifier.fillMaxWidth().topRule(c.rule).padding(vertical = Space.m)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Line(pin.name, Type.body.copy(fontWeight = Type.action.fontWeight), c.ink, maxLines = 1)
+                val lists = pin.sections.mapNotNull { id -> sections.firstOrNull { it.first == id }?.second }
+                Line(listOfNotNull(
+                    learned?.kind?.takeIf { it != Kind.OTHER }?.label,
+                    learned?.let { "${it.visits} ${if (it.visits == 1) "visit" else "visits"}" },
+                    if (lists.isEmpty()) "no list" else "shows " + lists.joinToString(", "),
+                ).joinToString(" · "), Type.small, c.ink3, maxLines = 2)
+            }
+            StatusWord(if (here) "You're here" else "Your pin", if (here) Tone.ACTIVE else Tone.OK)
+        }
+        Row { TextAction("Edit", cb.onEditPins) }
     }
 }
 

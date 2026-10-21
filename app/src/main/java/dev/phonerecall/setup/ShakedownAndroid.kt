@@ -388,10 +388,13 @@ class ShakedownHub private constructor(private val app: Context) {
         }
         out += ShakeStep("delphi", timeoutMs = 60_000L, estimateCents = 3) {
             if (!core.vault.has()) throw TestSkipped("No Anthropic key")
-            val engine = AthenaEngine(core.gateway, ToolBox(BackgroundReads(app, core), core.fates), core.delphiSpend)
-            val history = mutableListOf(MessageParam.builder().role(MessageParam.Role.USER).content("Zeus shakedown test from Telete: reply with the one word ready. Call no tools.").build())
-            var said = ""
-            engine.run(history, BrainModel.HAIKU, null, object : TurnSink { override fun assistant(text: String) { if (text.isNotBlank()) said = text } })
+            // One chat message through her session, the way the chat sends it (chat 0: no transcript line).
+            val r = host.locked {
+                queueChat(0, "Zeus shakedown ${live.id} from Telete: reply with the one word ready. Call no tools.")
+                deliverChat()
+            }
+            if (r.delivery != dev.phonerecall.mind.Mind.Delivery.SENT) throw TestFailed("Not delivered: ${r.delivery.name.lowercase()}")
+            val said = r.messages.lastOrNull().orEmpty()
             if (said.isBlank()) throw TestFailed("She answered with nothing") else "She said: ${said.take(60)}"
         }
         out += ShakeStep("proposal") { proposal(live) }

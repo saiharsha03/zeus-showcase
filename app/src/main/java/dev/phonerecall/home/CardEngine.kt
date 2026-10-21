@@ -69,6 +69,8 @@ data class BoardInputs(
     val moment: dev.phonerecall.moments.MomentCard? = null,
     /** Today's birthdays, one per person whatever the source (brain/BirthdayBook): these replace the plain birthday event cards. */
     val birthdays: dev.phonerecall.brain.BirthdayBoard = dev.phonerecall.brain.BirthdayBoard(),
+    /** Small touches' cards (qol2/Touches), best first. */
+    val touches: List<dev.phonerecall.qol2.TouchCard> = emptyList(),
 )
 
 object Fmt {
@@ -178,6 +180,7 @@ object CardEngine {
             }
         }
         for (g in i.generated) if (g.expiresAt > nowMs) candidates += generated(g, i)
+        if (onHome(CardKind.TOUCH, p)) for (q in i.touches) candidates += touch(q)
 
         val scored = candidates.map { c ->
             var s = c.kind.base + c.timeFit
@@ -193,7 +196,8 @@ object CardEngine {
         }
 
         // Hidden cards stay off, unless they carry something that must never be hidden.
-        val ordered = scored.filter { (c, _) -> c.neverHideReason != null || (c.id !in p.hidden && !dismissed(c, i)) }
+        // A must-see card can't be hidden as a kind, but this one can still be marked done (Got it, swipe).
+        val ordered = scored.filter { (c, _) -> !dismissed(c, i) && (c.neverHideReason != null || c.id !in p.hidden) }
             .sortedByDescending { it.second }
             .toMutableList()
         // Moved cards go back to the slot he dropped them in.
@@ -232,6 +236,7 @@ object CardEngine {
         val times = ArrayList<Long>()
         for (e in i.calendar.events) if (!e.allDay) { times += e.begin - 3_600_000L; times += e.begin; times += e.end }
         for (g in i.generated) times += g.expiresAt
+        for (q in i.touches) q.content.live?.countdownTo?.let { times += it }
         times += i.prefs.snoozed.values
         times += i.now.truncatedTo(ChronoUnit.HOURS).plusHours(1).toInstant().toEpochMilli()
         return times.filter { it > nowMs + 1_000 }.minOrNull() ?: (nowMs + 3_600_000L)
@@ -351,7 +356,7 @@ object CardEngine {
             CardKind.TRIP_OFFER -> i.trip?.offer?.let { make(it, timeFit = 4f) }
             CardKind.MATCH -> i.sports?.let { make(it.content, timeFit = it.fit, updatedAt = it.updatedAt) }
             CardKind.OOO -> oooCard(i)?.let { (c, today) -> make(c, timeFit = if (today && h in 5..11) 22f else if (today) 10f else 4f) }
-            CardKind.EVENT, CardKind.GENERATED -> null
+            CardKind.EVENT, CardKind.GENERATED, CardKind.TOUCH -> null
         }
     }
 
@@ -759,6 +764,14 @@ object CardEngine {
 
     private fun count(n: Int) = if (n == 1) "1 event" else "$n events"
 
+    // ---- small touches ----
+
+    /** One id per touch (so each can be hidden), one instance per thing it is about (so a swipe clears only that). */
+    private fun touch(q: dev.phonerecall.qol2.TouchCard) = Candidate(
+        "touch:${q.touch.name.lowercase()}", CardKind.TOUCH, "TOUCH:${q.touch.name}", q.touch.label, q.content, CardKind.TOUCH.tint, q.fit,
+        instance = "touch:${q.touch.name}:${q.key}",
+    )
+
     // ---- generated cards ----
 
     private val factPattern = Regex("^([A-Za-z][A-Za-z ]{0,15}?)\\s+(\\d.*)$")
@@ -791,7 +804,11 @@ object CardEngine {
             title = g.title,
             body = prose,
             facts = facts,
-            actions = g.actions.take(3).map { CardAction(it.take(14), roleFor(it)) },
+            actions = (g.live + g.actions.map { a ->
+                val role = roleFor(a)
+                if (role == ActionRole.OPEN && g.link != null) CardAction(a.take(20), ActionRole.LINK, g.link) else CardAction(a.take(14), role)
+            }).take(3),
+            replies = g.replies,
             sample = sample,
             live = if (liveWorthy) LiveInfo(chipOf(g.title), g.title, liveText, sample = sample) else null,
         )

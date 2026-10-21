@@ -368,7 +368,14 @@ class MusicCore private constructor(private val app: Context) : MusicHands, Musi
         BrainCore.get(app).let { it.fates.propose(listOf(RawStep(ProposalKind.MUSIC_WHILE_DRIVING, args)), null, null, proposer = "Drive mode"); it.changed() }
     }
 
-    fun driveEnded() = setDriving(false)
+    fun driveEnded() {
+        setDriving(false)
+        // Small touches: whether music was on as the drive ended, for "Resume on the Fold" (qol2/Touches).
+        runCatching { dev.phonerecall.qol2.Touches.driveEnded(app, _now.value?.playing == true) }
+    }
+
+    /** The car's music already started (qol/CarMusic): drive mode's proposal skips this trip. */
+    fun drivePlayed(at: Long) { sp.edit().putLong("drive.last", at).apply() }
 
     companion object {
         /** His own playlist, matched by exact name, when no drive playlist is chosen. */

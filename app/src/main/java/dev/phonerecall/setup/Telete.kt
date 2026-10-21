@@ -36,10 +36,12 @@ object Perm {
     const val BACKGROUND = "android.permission.ACCESS_BACKGROUND_LOCATION"
     const val ACTIVITY = "android.permission.ACTIVITY_RECOGNITION"
     const val CALL_LOG = "android.permission.READ_CALL_LOG"
+    const val CALL = "android.permission.CALL_PHONE"
     const val CONTACTS = "android.permission.READ_CONTACTS"
     const val CALENDAR = "android.permission.READ_CALENDAR"
     const val MIC = "android.permission.RECORD_AUDIO"
     const val NOTIFY = "android.permission.POST_NOTIFICATIONS"
+    const val NEARBY = "android.permission.BLUETOOTH_CONNECT"
 }
 
 /**
@@ -122,12 +124,18 @@ object Telete {
             Fix.Ask(listOf(if (has(Perm.FINE)) Perm.BACKGROUND else Perm.FINE)), "Allow",
         )
         out += perm("activity", "Physical activity", "Tells walking from driving, for the driving report", Perm.ACTIVITY)
+        out += perm("nearby", "Nearby devices", "Notices the car's Bluetooth connecting, for drives and Clio", Perm.NEARBY)
         out += Check(
             "listener", PHONE, "Notification senses", "Cards, birthdays, Moneta's spending and who to answer first",
             ok(f.listener), if (f.listener) "" else "Notification access is off", Fix.System(Screen.NOTIFICATION_LISTENER), "Open",
         )
         out += Check("usage", PHONE, "Usage access", "Screen time in Eos and the rhythms of your day", ok(f.usage), if (f.usage) "" else "Usage access is off", Fix.System(Screen.USAGE_ACCESS), "Open")
         out += perm("call-log", "Call log", "Who you call home and when, for Horae", Perm.CALL_LOG)
+        // Asked the first time he taps Call back, so it is never "missing".
+        out += Check(
+            "call-phone", PHONE, "Phone calls", "A card's Call back dials directly, on your tap",
+            if (has(Perm.CALL)) Status.OK else Status.OPTIONAL, if (has(Perm.CALL)) "" else "Asked the first time you tap Call back", Fix.Ask(listOf(Perm.CALL)), "Allow",
+        )
         out += perm("contacts", "Contacts", "First names, birthdays and relations for People", Perm.CONTACTS)
         out += perm("calendar", "Calendar", "Your next event on Home and in Athena's day", Perm.CALENDAR)
         out += perm("mic", "Microphone", "Speak in Parnassus and talk to Athena", Perm.MIC)
@@ -147,7 +155,7 @@ object Telete {
             if (f.battery) "" else if (f.samsung) "Set Battery to Unrestricted. On Samsung also add Zeus to Never sleeping apps (Battery, Background usage limits)." else "Set Battery to Unrestricted",
             Fix.System(Screen.BATTERY), "Open",
         )
-        out += key("anthropic", "Anthropic", "Athena's mind and Delphi").copy(test = "athena")
+        out += key("anthropic", "Anthropic", "Athena's mind and chat").copy(test = "athena")
         out += key("gemini", "Gemini", "Live voice")
         out += key("hetzner", "Hetzner", "Lemnos's server page and its storage box")
         out += key("tomtom", "TomTom", "Traffic and leave-by times").copy(test = "tomtom")

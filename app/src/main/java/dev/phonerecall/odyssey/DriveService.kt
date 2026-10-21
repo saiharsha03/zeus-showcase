@@ -48,8 +48,10 @@ class DriveService : Service(), SensorEventListener {
         @Volatile var lastFix: Fix? = null
 
         fun start(c: Context) {
-            if (!Odyssey.canFine(c)) return
+            if (!Odyssey.canFine(c)) { dev.phonerecall.clio.Clio.warn("odyssey", "drive not started", "precise location is off"); return }
+            // Android can refuse a location service started from the background; say so instead of losing the drive quietly.
             runCatching { c.startForegroundService(Intent(c, DriveService::class.java).setAction(START)) }
+                .onFailure { dev.phonerecall.clio.Clio.warn("odyssey", "drive not started", it.javaClass.simpleName) }
         }
 
         fun stop(c: Context) { runCatching { c.startService(Intent(c, DriveService::class.java).setAction(STOP)) } }
@@ -145,6 +147,8 @@ class DriveService : Service(), SensorEventListener {
         val a = analyzer
         val tr = track
         analyzer = null
+        // Started by a geofence exit (no IN_VEHICLE from activity recognition): end the drive for the stays too.
+        if (a != null) Thread { runCatching { if (OdysseyStore.load(applicationContext).driving) Odyssey.transitions(applicationContext, listOf(Act.VEHICLE_EXIT to System.currentTimeMillis())) } }.start()
         track = null
         runCatching { getSystemService(SensorManager::class.java).unregisterListener(this) }
         runCatching { LocationServices.getFusedLocationProviderClient(this).removeLocationUpdates(locations) }

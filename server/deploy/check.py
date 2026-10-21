@@ -9,6 +9,7 @@ import hashlib
 import http.client
 import json
 import os
+import pwd
 import secrets
 import shutil
 import socket
@@ -77,7 +78,7 @@ def main():
         bare = ssl.create_default_context()
         for m, p in [("GET", "/api/health"), ("GET", "/api/ping"), ("POST", "/api/chat/zeus"), ("GET", "/ws/events"), ("GET", "/"),
                      ("GET", "/hooks/anthropic"), ("PUT", "/hooks/anthropic"), ("POST", "/hooks/anthropic/"), ("POST", "/hooks/other"),
-                     ("POST", "/hooks/anthropic/../../api/health")]:
+                     ("POST", "/hooks/anthropic/../../api/health"), ("PUT", "/api/moneta/view")]:
             s, _ = call(bare, m, p, {}, host=HOOKS)
             ok(f"hooks host: {m} {p} 404", s == 404, f"got {s}")
         s, _ = call(bare, "POST", "/hooks/anthropic", {"type": "event"}, host=HOOKS)
@@ -132,6 +133,12 @@ def main():
                 pass
         r = subprocess.run(["runuser", "-u", "openclaw", "--", "/usr/bin/ls", "/mnt/zeus-backups"], capture_output=True, text=True, timeout=10)
         ok("openclaw cannot list /mnt/zeus-backups", r.returncode != 0)
+        # Moneta's view for Iris: only the gateway reads it (her plugin asks over the channel), never openclaw directly
+        r = subprocess.run(["runuser", "-u", "openclaw", "--", "/usr/bin/cat", "/var/lib/zeus/moneta-view.json"], capture_output=True, text=True, timeout=10)
+        ok("openclaw cannot read /var/lib/zeus/moneta-view.json", r.returncode != 0 and not r.stdout)
+        if os.path.exists("/var/lib/zeus/moneta-view.json"):
+            st = os.stat("/var/lib/zeus/moneta-view.json")
+            ok("moneta-view.json is zeus's, 0600", st.st_mode & 0o777 == 0o600 and st.st_uid == pwd.getpwnam("zeus").pw_uid, oct(st.st_mode & 0o777))
 
         # 4. a live terminal on a fresh shell
         s, b = call(ctx, "POST", "/api/shell", {})

@@ -47,6 +47,12 @@ sealed class Action {
     data class Toggle(val key: String, val on: Boolean) : Action()
     /** One feature's model (models/Models.kt): pick from what fits, with his fingerprint; Undo puts the last one back. */
     data class Model(val pick: ModelPick) : Action()
+    /** A task Athena spawned (mind/Tasks.kt) that is still running: Cancel stops its session. */
+    data class CancelTask(val id: String, val title: String) : Action()
+    /** A learned shortcut (shortcuts/): suggest, do it with Undo (only where allowed), or delete. */
+    data class Shortcut(val id: String, val mode: dev.phonerecall.shortcuts.Mode, val canAuto: Boolean) : Action()
+    /** A Hestia home routine: on or off here; devices, rooms and times in Hestia. */
+    data class HomeRoutine(val id: String, val on: Boolean) : Action()
 }
 
 /** A feature's model as Horologion shows it: the choice, what it may switch to, and what Undo would restore. */
@@ -95,6 +101,12 @@ data class AthenaFacts(
     val store: String? = null,
     val oneiroi: List<Pair<String, String>> = emptyList(),               // job, what
     val picks: List<ModelPick> = emptyList(),
+    /** Her conversation session in words: "context: 12% · new session at 4 AM". */
+    val session: String? = null,
+    /** Tasks she spawned, newest last. */
+    val tasks: List<dev.phonerecall.mind.SpawnedTask> = emptyList(),
+    /** The fresh start's agent work (fresh/): name, what, where it stands. */
+    val fresh: List<Triple<String, String, String>> = emptyList(),
 )
 
 object Horologion {
@@ -121,6 +133,25 @@ object Horologion {
             "Anthropic (Managed Agents)",
             listOfNotNull("${Cron.words(j.cron)}, ${zone.id}", if (j.paused) "paused" else next?.let { "next $it" }, lastRun).joinToString(" · "),
             Action.AthenaSchedule(j),
+        )
+    }
+
+    /** His learned shortcuts: when, then, how, and how often they fired. */
+    fun shortcuts(rules: List<dev.phonerecall.shortcuts.Rule>, zone: ZoneId): List<Item> = rules.map { r ->
+        Item(
+            "shortcut-${r.id}", Owner.ATHENA, Tab.JOBS, "Learned shortcuts", "${r.actionLabel.replaceFirstChar { it.uppercase() }} when ${r.triggerLabel}",
+            if (r.mode == dev.phonerecall.shortcuts.Mode.AUTO) "Does it on its own, with Undo" else "A one-tap card each time", "This phone",
+            listOfNotNull("fired ${r.fired}x", r.lastFired?.let { "last ${at(it, zone)}" }).joinToString(" · "),
+            Action.Shortcut(r.id, r.mode, dev.phonerecall.shortcuts.Learn.autoAllowed(r)),
+        )
+    }
+
+    /** Hestia's home routines: what each does, on or off, and its last run. */
+    fun homeRoutines(routines: List<dev.phonerecall.hestia.Routine>, describe: (dev.phonerecall.hestia.Routine) -> String, zone: ZoneId): List<Item> = routines.map { r ->
+        Item(
+            "home-routine-${r.id}", Owner.ATHENA, Tab.JOBS, "Home routines", r.name, describe(r), "This phone (Hestia, with Undo)",
+            listOfNotNull(if (r.on) "on" else "off", "ran ${r.runs}x".takeIf { r.runs > 0 }, r.lastRun?.let { "last ${at(it, zone)}" }, r.lastWords).joinToString(" · "),
+            Action.HomeRoutine(r.id, r.on),
         )
     }
 
@@ -180,10 +211,19 @@ object Horologion {
 
     fun athena(f: AthenaFacts): List<Item> {
         val out = ArrayList<Item>()
+        f.session?.let { out += Item("athena-session", Owner.ATHENA, Tab.JOBS, "Her conversation", "Today's session", "Chat, batches, heartbeats and Agora all go here. A new one each day at 4 AM, seeded with what she wrote at the end of the last one and Oneiroi's facts; earlier when it grows too big", "Anthropic (Managed Agents)", it) }
+        f.tasks.forEach { t ->
+            out += Item(
+                "athena-task-${t.id}", Owner.ATHENA, Tab.JOBS, "Tasks she spawned", t.title, t.instructions.take(140), "Anthropic (its own session)",
+                listOfNotNull(t.status, "${t.who}, ${t.costCents} of ${t.budgetCents} cents", t.result?.take(120)).joinToString(" · "),
+                if (t.open) Action.CancelTask(t.id, t.title) else null,
+            )
+        }
         f.tools.forEach { (n, d) -> out += Item("athena-tool-$n", Owner.ATHENA, Tab.SKILLS, "Her tools", n, d.substringBefore(". ").take(140), "Answered on this phone") }
         f.circle.forEach { (n, m, r) -> out += Item("athena-circle-$n", Owner.ATHENA, Tab.SKILLS, "Her circle", n, r, "Anthropic (Managed Agents)", m) }
         f.store?.let { out += Item("athena-store", Owner.ATHENA, Tab.SKILLS, "Memory", it, "Her long-term memory store", "Anthropic (Managed Agents)") }
         f.oneiroi.forEach { (n, w) -> out += Item("athena-oneiroi-$n", Owner.ATHENA, Tab.JOBS, "Oneiroi", n, w, "This phone") }
+        f.fresh.forEach { (n, w, v) -> out += Item("athena-fresh-$n", Owner.ATHENA, Tab.JOBS, "Fresh start", n, w, "Anthropic (Managed Agents)", v) }
         f.picks.forEach { p -> out += Item("athena-model-${p.key}", Owner.ATHENA, Tab.SETUP, "Models", p.label, if (p.current == p.default) "The model behind it" else "The model behind it (default ${p.default})", "Anthropic", p.current, Action.Model(p)) }
         f.models.forEach { (feat, m) -> out += Item("athena-model-$feat", Owner.ATHENA, Tab.SETUP, "Models", feat, "The model behind it", "Anthropic", m) }
         f.caps.forEach { (n, v) -> out += Item("athena-cap-$n", Owner.ATHENA, Tab.SETUP, "Budgets and caps", n, "A spending limit", "This phone", v) }

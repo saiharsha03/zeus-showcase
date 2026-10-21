@@ -625,9 +625,7 @@ object WidgetContent {
 
     // ---- 12. Moneta: the week, no amounts ----
 
-    private fun net(txns: List<dev.phonerecall.moneta.Txn>, from: Long, to: Long): Long = txns.filter { it.counted && it.at in from until to }.sumOf {
-        when (it.kind) { dev.phonerecall.moneta.TxnKind.SPEND -> it.cents; dev.phonerecall.moneta.TxnKind.REFUND -> -it.cents; else -> 0L }
-    }.coerceAtLeast(0)
+    private fun net(txns: List<dev.phonerecall.moneta.Txn>, from: Long, to: Long): Long = dev.phonerecall.moneta.Money.net(txns, from, to)
 
     /**
      * This week's spending against a usual week as a percent (the last seven days against the four weeks

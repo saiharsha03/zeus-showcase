@@ -80,8 +80,9 @@ object MomentsCore {
                 ?.let { java.time.Instant.ofEpochMilli(it).atZone(now.zone) },
             staples = staples(c, prefs, ms),
             callSlot = CallHabit.slot(prefs.calls, ms, now.zone),
+            qol = runCatching { dev.phonerecall.qol.QolCore.signals(c, now, d) }.getOrDefault(dev.phonerecall.qol.QolSignals()),
         )
-        return MomentRules.pick(ctx, prefs).also { shown = it }
+        return MomentRules.pick(ctx, prefs).also { shown = it; dev.phonerecall.qol.QolCore.shown(it) }
     }
 
     /**
@@ -140,7 +141,9 @@ object MomentsCore {
                 card?.plans?.get(parts[2])?.let { propose(c, it) }
                 card?.opens?.get(parts[2])?.let { open(c, it) }
                 val teach = card?.teach?.get(parts[2])
-                update(c) { p -> (teach?.invoke(p) ?: p).took(kind, key) }
+                val keep = card?.keep?.contains(parts[2]) == true
+                update(c) { p -> (teach?.invoke(p) ?: p).let { if (keep) it else it.took(kind, key) } }
+                if (kind in dev.phonerecall.qol.QolCore.KINDS || kind == MomentKind.TRASH) { dev.phonerecall.clio.Clio.info(dev.phonerecall.qol.QolCore.AREA, "tap", "${kind.label}: ${parts[2]}"); dev.phonerecall.qol.QolCore.tapped(c, kind, key, parts[2]) }
             }
             ActionRole.MOMENT_SNAP -> update(c) { it.took(kind, key) }
             ActionRole.MOMENT_LATER -> update(c) { it.later(kind, key, LocalDate.now().toEpochDay()) }
@@ -150,11 +153,8 @@ object MomentsCore {
         BrainCore.get(c).changed()
     }
 
-    /** His tap opens another app: "app:<package>" launches it, anything else opens in the browser. */
-    fun open(c: Context, target: String) = runCatching {
-        val i = if (target.startsWith("app:")) c.packageManager.getLaunchIntentForPackage(target.removePrefix("app:")) else Intent(Intent.ACTION_VIEW, Uri.parse(target))
-        i?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)?.let { c.startActivity(it) }
-    }
+    /** His tap opens another app: "app:<package>" launches it, "camera" the camera, anything else is a view intent. */
+    fun open(c: Context, target: String) = dev.phonerecall.qol.Opens.start(c, target)
 
     /** Themis: turns a context moment back on (or off). */
     fun setOn(c: Context, kind: MomentKind, on: Boolean) {
@@ -170,6 +170,7 @@ object MomentsCore {
 
     /** A receipt or order notification with a frozen or bake item: kept by name for tonight's card. */
     fun notification(c: Context, n: Incoming) {
+        runCatching { dev.phonerecall.qol.QolCore.notification(c, n) }
         Purchases.item("${n.title}\n${n.text}")?.let { item -> update(c) { it.copy(purchase = Purchase(item, n.at)) } }
         // A call from family (saved as Amma, Nanna...): its time only, for the usual call home.
         if (CALL.containsMatchIn(n.text) && dev.phonerecall.brain.AddressTerms.relationOf(n.title)?.first?.label == "family") {

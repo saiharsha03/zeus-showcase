@@ -52,6 +52,8 @@ enum class CardKind(val label: String, val title: String, val about: String, val
     TRIP_OFFER("A trip?", "Possible trips", "A travel booking that might be a trip, offered once", 16f, Tint.BRAIN),
     /** Praxis: the GTD weekly review, Sunday afternoons until it is done. */
     REVIEW("Review", "Weekly review", "Sunday afternoons: empty the Inbox, stuck projects, Waiting fors and the week ahead", 27f, Tint.TASKS),
+    /** Small touches (qol2/): a tip, a layover gate, a quick timer, one helper card each. */
+    TOUCH("Touch", "Small touches", "Tips, layovers, quick timers, a list to clear: one small helper at a time", 14f, Tint.BRAIN),
     GENERATED("", "", "", 28f, Tint.BRAIN),
 }
 
@@ -61,6 +63,8 @@ enum class CardSource(val label: String, val neverHide: Boolean = false) {
     BANK("Bank alert", neverHide = true), SECURITY("Security alert", neverHide = true),
     /** A plan window or Athena's cap passed a threshold (Metron), once each. */
     METRON("Metron"),
+    /** A security alert Zeus caused itself (its own consent): quiet, gone in a day. */
+    ACCOUNT("Security alert"),
 }
 
 /**
@@ -87,6 +91,12 @@ data class GeneratedCard(
         travel -> dev.phonerecall.brain.Urgency.TIME_CRITICAL
         else -> dev.phonerecall.brain.Urgency.NICE
     },
+    /** One-tap agency: the source notification's buttons, first on the card; they go when the notification does. */
+    val live: List<CardAction> = emptyList(),
+    /** One-tap reply chips (role LIVE_SEND): each sends its exact text when tapped. */
+    val replies: List<CardAction> = emptyList(),
+    /** Where its open action goes in his browser ("Review connections"), when it has one. */
+    val link: String? = null,
 )
 
 @Immutable data class Fact(val label: String, val value: String, val status: String? = null, val tone: Tone = Tone.QUIET)
@@ -101,7 +111,20 @@ data class GeneratedCard(
 @Immutable data class CheckItem(val id: String, val label: String, val checked: Boolean)
 
 /** What an action does when tapped. */
-enum class ActionRole { OPEN, ACK, DISMISS, ALLOW_CALENDAR, WEAR, ANOTHER, OPEN_CLOSET, OPEN_TASKS, OPEN_OLYMPIA, OPEN_WEATHER, OPEN_ODYSSEY, MAPS, ODYSSEY_YES, ODYSSEY_NO, OPEN_HESTIA, OPEN_ALARMS, ALARM_SET, ALARM_LINK, ALARM_MUSIC, ALARM_ASK, ALARM_OTHER, ALARM_DONE, ALARM_SPORT, ROAD_DONE, WFH_YES, WFH_NO, FUEL_ODOMETER, FUEL_SKIP, CAR_SETUP, MOMENT_GO, MOMENT_SNAP, MOMENT_LATER, MOMENT_NEVER, OPEN_ARGO, ARGO, OPEN_REVIEW, BIRTHDAY_REACH, BIRTHDAY_DONE }
+enum class ActionRole { OPEN, ACK, DISMISS, ALLOW_CALENDAR, WEAR, ANOTHER, OPEN_CLOSET, OPEN_TASKS, OPEN_OLYMPIA, OPEN_WEATHER, OPEN_ODYSSEY, MAPS, ODYSSEY_YES, ODYSSEY_NO, OPEN_HESTIA, OPEN_ALARMS, ALARM_SET, ALARM_LINK, ALARM_MUSIC, ALARM_ASK, ALARM_OTHER, ALARM_DONE, ALARM_SPORT, ROAD_DONE, WFH_YES, WFH_NO, FUEL_ODOMETER, FUEL_SKIP, CAR_SETUP, MOMENT_GO, MOMENT_SNAP, MOMENT_LATER, MOMENT_NEVER, OPEN_ARGO, ARGO, OPEN_REVIEW, BIRTHDAY_REACH, BIRTHDAY_DONE,
+    /** One-tap agency: a notification's own action or a derived one; payload "<note key>#<index>" (brain/Agency). */
+    LIVE,
+    /** A reply chip: payload is Agency.sayPayload; one tap sends that text. */
+    LIVE_SEND,
+    /** Small touches (qol2/): payload "<TOUCH>|<key>|<option>". */
+    TOUCH,
+    /** Opens [CardAction.payload] in his browser ("Review connections"). */
+    LINK,
+    /** Olympia: payload is a match id; opens the app carrying it (olympia/Watch). */
+    WATCH,
+    /** A plan's time, picked from two readings: payload "<thread>|<epoch ms>" (brain/Plans). */
+    PLAN_PICK,
+}
 
 /** `payload` carries what the action is about, e.g. the top for "Wearing this". */
 @Immutable data class CardAction(val label: String, val role: ActionRole, val payload: String? = null)
@@ -111,8 +134,11 @@ enum class ActionRole { OPEN, ACK, DISMISS, ALLOW_CALENDAR, WEAR, ANOTHER, OPEN_
  * set, the status-bar chip shows the live countdown instead of `chip`.
  */
 @Immutable
-/** [key]: the item it is about (an event's instance key), so dismissing it on any card clears it everywhere. */
-data class LiveInfo(val chip: String, val title: String, val text: String, val countdownTo: Long? = null, val sample: Boolean = false, val key: String? = null)
+/**
+ * [key]: the item it is about (an event's instance key), so dismissing it on any card clears it everywhere.
+ * [watch]: an Olympia match id; the notification gets a Watch button that opens its app.
+ */
+data class LiveInfo(val chip: String, val title: String, val text: String, val countdownTo: Long? = null, val sample: Boolean = false, val key: String? = null, val watch: String? = null)
 
 /** A small number tile inside a card, after BetweenWeather's metric tiles: "2" over "due". */
 @Immutable data class Stat(val value: String, val label: String, val form: TileForm)
@@ -134,6 +160,8 @@ data class CardContent(
     val status: String? = null,
     val tone: Tone = Tone.QUIET,
     val actions: List<CardAction> = emptyList(),
+    /** One-tap reply chips, under the body. */
+    val replies: List<CardAction> = emptyList(),
     val sample: Boolean = false,
     val placeholder: Boolean = false,     // "arrives in phase N": always small, always low
     val live: LiveInfo? = null,

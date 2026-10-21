@@ -117,11 +117,11 @@ class ModelsTest {
     @Test fun switchProposalsAreCheckedAgainstThePicker() {
         val r = Rig()
         ModelChoice.book.saveLive(live)
-        assertTrue(r.fates.propose(listOf(RawStep(ProposalKind.SWITCH_MODEL, mapOf("feature" to "delphi", "model" to "claude-opus-5-5"))), null, null) is ProposeResult.Created)
+        assertTrue(r.fates.propose(listOf(RawStep(ProposalKind.SWITCH_MODEL, mapOf("feature" to "reflect", "model" to "claude-opus-5-5"))), null, null) is ProposeResult.Created)
         for (args in listOf(
             mapOf("feature" to "metis", "model" to "claude-haiku-5-5"),      // not an advisor
-            mapOf("feature" to "delphi", "model" to "claude-sonnet-4-6"),    // deprecated, and not priced
-            mapOf("feature" to "delphi", "model" to "claude-sonnet-5-5"),    // already in use
+            mapOf("feature" to "reflect", "model" to "claude-sonnet-4-6"),    // deprecated, and not priced
+            mapOf("feature" to "reflect", "model" to "claude-haiku-5-5"),    // already in use
             mapOf("feature" to "nope", "model" to "claude-opus-5-5"),
         )) assertTrue(args.toString(), r.fates.propose(listOf(RawStep(ProposalKind.SWITCH_MODEL, args)), null, null) is ProposeResult.Invalid)
         assertFalse(r.fates.eligibleForAuto(

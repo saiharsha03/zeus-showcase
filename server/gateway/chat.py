@@ -44,6 +44,7 @@ class Chat:
         self.channel: asyncio.StreamWriter | None = None
         self._procs: dict[str, list[str]] = {}   # session -> argv lines, refreshed by status()
         self.trip_info = None           # info -> id, raises ValueError; set by the app (Argo)
+        self.moneta_view = None         # (days, query) -> the phone's Moneta view filtered, or None; set by the app
         self.wake = lambda: None        # wakes the phone (FCM "sync") so Athena fetches Agora; set by the app
         self._kicks: set = set()
 
@@ -329,6 +330,15 @@ class Chat:
                         ack = {"t": "trip.ack", "req": f["req"], "ok": True, "id": self.trip_info(f.get("info"))}
                     except ValueError as e:
                         ack = {"t": "trip.ack", "req": f["req"], "ok": False, "error": str(e)[:300]}
+                    writer.write((json.dumps(ack) + "\n").encode())
+                    await writer.drain()
+                elif f.get("t") == "moneta.view" and isinstance(f.get("req"), int) and self.moneta_view is not None:
+                    # Iris reading Moneta (moneta_view): the phone's last snapshot, filtered. Merchant text comes from bank
+                    # notifications, so the answer travels fenced as data.
+                    v = self.moneta_view(f.get("days", 30), f.get("query"))
+                    ack = ({"t": "moneta.ack", "req": f["req"], "ok": True, "rows": len(v["rows"]),
+                            "text": env.fence("Moneta, from the owner's phone; merchant names come from bank notifications", json.dumps(v))}
+                           if v is not None else {"t": "moneta.ack", "req": f["req"], "ok": False, "error": "the phone hasn't shared Moneta yet"})
                     writer.write((json.dumps(ack) + "\n").encode())
                     await writer.drain()
                 elif f.get("t") == "agora.post" and isinstance(f.get("req"), int):

@@ -76,7 +76,7 @@ object Shakedown {
     val READ_TOOLS = linkedMapOf(
         "now" to "tool-now", "read_calendar" to "tool-calendar", "read_tasks" to "tool-tasks", "read_availability" to "tool-availability",
         "read_trips" to "tool-trips", "read_cards" to "tool-cards", "read_people_labels" to "tool-people", "read_sections" to "tool-sections",
-        "search_memory" to "tool-memory", "read_usage" to "tool-usage", "read_schedules" to "tool-schedules",
+        "search_memory" to "tool-memory", "read_usage" to "tool-usage", "read_schedules" to "tool-schedules", "read_zeus" to "tool-zeus",
     )
 
     val CHECKS: List<ShakeCheck> = listOf(
@@ -93,6 +93,7 @@ object Shakedown {
         a("tool-memory", "Alexandria", "search_memory", telete = "alexandria"),
         a("tool-usage", "Metron", "read_usage", telete = "lemnos"),
         a("tool-schedules", "Horologion", "read_schedules", telete = "mind"),
+        a("tool-zeus", "Athena", "read_zeus: the index and one area"),
         p("card", "Olympus", "A test card is placed and removed", dest = "HOME"),
         p("proposal", "Fates", "A test proposal is confirmed, then undone", dest = "FATES"),
         p("heartbeat", "Athena", "One heartbeat turn", telete = "heartbeat"),
@@ -102,7 +103,7 @@ object Shakedown {
         a("agora-post", "Agora", "post_agora lands in Agora", telete = "agora"),
         p("agora-answer", "Agora", "Iris or Atlas answers in Agora", telete = "agora"),
         p("group", "Agora", "Group chat relay reaches Athena (nothing posted)", telete = "agora"),
-        p("delphi", "Delphi", "One Delphi chat turn", telete = "key-anthropic"),
+        p("delphi", "Athena", "One chat message reaches her session and she answers", telete = "key-anthropic"),
         p("live", "Voice", "Gemini Live answers a typed turn", telete = "key-gemini"),
         ShakeCheck("live-mic", "Voice", "Mic test: say something within 10 s", telete = "mic", manual = true),
         p("hermes", "Hermes", "Commands parse, nothing set"),
@@ -140,7 +141,7 @@ object Shakedown {
     fun prompt(runId: String): String = """
 [Zeus] SHAKEDOWN $runId. The owner started a full test run of Zeus from Telete. Silence is not fine for this one: do every step below now, then stop.
 This is a test. Change nothing, propose nothing, message no one outside Agora and Iris. Writes are switched off on the phone until it ends.
-1. Call each of these once, with small inputs: ${READ_TOOLS.keys.joinToString(", ")} (search_memory with query "test", k 3). read_cards should show a card titled "$CARD_TITLE".
+1. Call each of these once, with small inputs: ${READ_TOOLS.keys.joinToString(", ")} (search_memory with query "test", k 3; read_zeus twice, area index and then area weather). read_cards should show a card titled "$CARD_TITLE".
 2. ask_worker: worker iris, topic shakedown, question "Zeus shakedown: please answer this test question. What day is it where you are? One line."
 3. post_agora, room agora: "Zeus shakedown: please answer this test question. Iris or Atlas, reply with one word."
 4. After each step call report_check with its id, pass, fail or skip, and one short line. Ids: ${READ_TOOLS.values.joinToString(", ")}, ask-iris, agora-post, mind-turn (last, once you are done).

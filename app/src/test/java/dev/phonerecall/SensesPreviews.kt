@@ -111,6 +111,49 @@ object SensesPreviews {
         steps = listOf(Step(ProposalKind.ADD_BIRTHDAY, mapOf("name" to "Alex", "date" to "10-19", "source" to "the “Family” group"), "Save Alex's birthday (Oct 19) in Google Calendar. It repeats every year.")),
     )
 
+    /** One-tap agency: the apps' own buttons on the cards, and a reply open with Athena's draft. */
+    @Composable fun AgencyCards() {
+        fun live(vararg l: String) = l.mapIndexed { i, s -> dev.phonerecall.home.CardAction(s, dev.phonerecall.home.ActionRole.LIVE, "n#$i") }
+        val reply = androidx.compose.runtime.remember { dev.phonerecall.home.ReplyBox().apply { open("gen:sense-msg", dev.phonerecall.home.CardAction("Reply", dev.phonerecall.home.ActionRole.LIVE, "n#0"), "On my way, I'll call you in 10") } }
+        PreviewSenseCards(
+            listOf(
+                GeneratedCard("Amma called twice", "Last call 9:41 PM", listOf("Got it"), now + 12 * h, CardSource.ATHENA, id = "sense-call", real = true, live = live("Call back", "Message")),
+                GeneratedCard(
+                    "Alex", "Are you coming tonight?", listOf("Got it"), now + 12 * h, CardSource.ATHENA, id = "sense-msg2", real = true, live = live("Edit", "Mark as read"),
+                    replies = listOf("Send \u201cSure, 7 works for me\u201d", "On my way", "Call you in 10").map { dev.phonerecall.home.CardAction(it, dev.phonerecall.home.ActionRole.LIVE_SEND, "n#0") },
+                ),
+                GeneratedCard("Alex", "Are you coming tonight?", listOf("Got it"), now + 12 * h, CardSource.ATHENA, id = "sense-msg", real = true, live = live("Edit", "Mark as read")),
+                GeneratedCard("Code from Messages", "Copy it from here. Zeus clears the clipboard after a minute.", emptyList(), now + h, CardSource.ATHENA, id = "code-1", real = true, live = live("Copy code")),
+                GeneratedCard("Delivery update", "UPS: Out for delivery today", listOf("Got it"), now + 12 * h, CardSource.ATHENA, id = "sense-delivery", real = true, live = live("Track")),
+            ),
+            emptyList(), Space.gutterNarrow, dev.phonerecall.home.CardCallbacks(reply = reply),
+        )
+    }
+
+    /** One-tap agency, later stages: intent buttons, the group wish, Splitwise and plans from a thread. Expiries are far out: the preview board runs at 9:48 PM whatever the clock says. */
+    @Composable fun AgencyCards2(columns: Int, gutter: androidx.compose.ui.unit.Dp) {
+        fun live(vararg l: String) = l.mapIndexed { i, s -> dev.phonerecall.home.CardAction(s, dev.phonerecall.home.ActionRole.LIVE, "n#$i") }
+        fun chips(vararg l: String) = l.map { dev.phonerecall.home.CardAction(it, dev.phonerecall.home.ActionRole.LIVE_SEND, "n#0") }
+        PreviewSenseCards(
+            listOf(
+                GeneratedCard("BGMI at 10:00 PM with Alex, Sam", "From the chat", emptyList(), now + 36 * h, CardSource.ATHENA, id = "plan-1", real = true, travel = true, live = live("Open BGMI", "Edit"), replies = chips("In", "Can't today")),
+                GeneratedCard(
+                    "PUBG? with Alex", "Which time did they mean?", emptyList(), now + 36 * h, CardSource.ATHENA, id = "plan-2", real = true, live = live("Open BGMI"),
+                    replies = listOf("10:00 PM", "In 10 min").map { dev.phonerecall.home.CardAction(it, dev.phonerecall.home.ActionRole.PLAN_PICK, "t|0") },
+                ),
+                GeneratedCard("Message from Alex", "Pubg?", listOf("Got it"), now + 36 * h, CardSource.ATHENA, id = "sense-pubg", real = true, live = live("Open BGMI", "Edit", "Mark as read"), replies = chips("In", "Can't today")),
+                GeneratedCard("Message from Riley", "pics bhej from yesterday", listOf("Got it"), now + 36 * h, CardSource.ATHENA, id = "sense-pics", real = true, live = live("Share photos", "Edit"), replies = chips("Sending now", "On my way")),
+                GeneratedCard("Message from Sam", "did you pay for dinner?", listOf("Got it"), now + 36 * h, CardSource.ATHENA, id = "sense-pay", real = true, live = live("Open GPay", "Edit")),
+                GeneratedCard(
+                    "Wish Alex happy birthday", "In Family", emptyList(), now + 36 * h, CardSource.ATHENA, id = "sense-wish", real = true, live = live("Edit", "Mark as read"),
+                    replies = chips("Send \u201cHappy birthday Alex anna \uD83C\uDF82\uD83C\uDF82\u201d", "Happy birthday Alex", "Many happy returns"),
+                ),
+                GeneratedCard("You owe \$12.50", "Alex added \"Dinner\" in \"Trip\".", listOf("Got it"), now + 36 * h, CardSource.ATHENA, id = "sense-splitwise", real = true, live = live("Open Splitwise", "Settle up")),
+            ),
+            emptyList(), gutter, columns = columns,
+        )
+    }
+
     @Composable fun NotificationCards() = PreviewSenseCards(
         listOf(
             GeneratedCard("Amma called twice", "Last call 9:41 PM", listOf("Got it"), now + 12 * h, CardSource.ATHENA, id = "sense-call", real = true),

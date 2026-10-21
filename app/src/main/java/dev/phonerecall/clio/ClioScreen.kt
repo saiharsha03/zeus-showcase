@@ -82,7 +82,7 @@ private const val CLIP_CHARS = 900_000
 
 /** Clio from Themis: reads the files off the main thread, then hands the lines to [ClioContent]. */
 @Composable
-fun ClioPage(gutter: Dp, back: () -> Unit) {
+fun ClioPage(gutter: Dp, back: () -> Unit, send: ((ClioLine) -> Unit)? = null) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     var lines by remember { mutableStateOf<List<ClioLine>?>(null) }
@@ -111,8 +111,10 @@ fun ClioPage(gutter: Dp, back: () -> Unit) {
         },
         onRefresh = { reload++ },
         back = back,
-        now = System.currentTimeMillis(),
+        // Fixed per read, so Day isn't rebuilt from 14 days of lines on every recomposition.
+        now = remember(lines) { System.currentTimeMillis() },
         onAllowCar = if (car) null else ({ askCar.launch(Manifest.permission.BLUETOOTH_CONNECT) }),
+        onSend = send,
     )
 }
 
@@ -130,6 +132,8 @@ fun ClioContent(
     now: Long = System.currentTimeMillis(),
     onAllowCar: (() -> Unit)? = null,
     startOnDay: Boolean = false,
+    /** "Send to Prometheus" on crash and freeze entries; null hides it. */
+    onSend: ((ClioLine) -> Unit)? = null,
 ) {
     val c = Athena.colors
     var dayMode by remember { mutableStateOf(startOnDay) }
@@ -201,14 +205,14 @@ fun ClioContent(
             else if (shown.isEmpty()) item { Line(if (lines.isEmpty()) "Nothing logged yet." else "Nothing matches.", Type.body, c.ink2, Modifier.padding(top = Space.l)) }
             for ((day, list) in days) {
                 item(key = "d-$day") { Kicker(DAY.format(day), Modifier.padding(top = Space.l, bottom = Space.xs)) }
-                for ((i, l) in list.withIndex()) item(key = "l-$day-$i-${l.ts}") { Entry(l, zone) }
+                for ((i, l) in list.withIndex()) item(key = "l-$day-$i-${l.ts}") { Entry(l, zone, onSend) }
             }
         }
     }
 }
 
 @Composable
-private fun Entry(l: ClioLine, zone: ZoneId) {
+private fun Entry(l: ClioLine, zone: ZoneId, onSend: ((ClioLine) -> Unit)?) {
     val c = Athena.colors
     var open by remember { mutableStateOf(false) }
     val tone = when (l.level) { Level.ERROR -> c.alert; Level.WARN -> c.accentInk; Level.INFO -> c.ink3 }
@@ -219,6 +223,7 @@ private fun Entry(l: ClioLine, zone: ZoneId) {
         }
         Line(l.area + if (l.level == Level.INFO) "" else " · " + l.level.name.lowercase(), Type.caption, tone, maxLines = 1)
         if (l.detail.isNotEmpty()) Line(l.detail, Type.small, c.ink2, maxLines = if (open) Int.MAX_VALUE else 2)
+        if (onSend != null && l.area in Clio.STACK_AREAS) Box(Modifier.offset(x = -Space.s)) { TextAction("Send to Prometheus", { onSend(l) }) }
     }
 }
 

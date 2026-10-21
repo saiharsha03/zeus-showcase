@@ -114,9 +114,10 @@ class GoogleHomeBackend(private val app: Context) : HomeBackend {
     override suspend fun requestPermission(): String? {
         val c = client ?: return HomeRules.linkWords(_state.value.link)
         return try {
+            dev.phonerecall.brain.ConsentLog.record(app, dev.phonerecall.brain.Consent.GOOGLE_HOME)
             val r = c.requestPermissions(ForcePermissionFlow.FORCE_LAUNCH)
             when (r.status) {
-                PermissionsResultStatus.SUCCESS -> null
+                PermissionsResultStatus.SUCCESS -> { dev.phonerecall.brain.ConsentLog.record(app, dev.phonerecall.brain.Consent.GOOGLE_HOME); null }
                 PermissionsResultStatus.CANCELLED -> "Cancelled"
                 PermissionsResultStatus.ERROR -> r.errorMessage ?: "Google refused the request"
             }

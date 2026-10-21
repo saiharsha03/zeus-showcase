@@ -232,6 +232,8 @@ class AthenaViewModel(app: Application) : AndroidViewModel(app) {
             if (!d.settings.on || home == null || stay == null) null
             else dev.phonerecall.odyssey.Geo.meters(home.lat, home.lng, stay.lat, stay.lng) >= 200
         }
+        // Home routines: his taps feed the learned-shortcuts evidence, and the sunset and night clock is armed.
+        dev.phonerecall.hestia.HestiaRoutines.install(app)
         // New fixtures: Chronos re-reads its months so the matches show.
         viewModelScope.launch {
             var seen = -1L
@@ -273,7 +275,7 @@ class AthenaViewModel(app: Application) : AndroidViewModel(app) {
                     generated = (if (s.sample) SampleData.generated(now) else emptyList()) + brainCards,
                     generatedAreSamples = true,
                     lemnos = server,
-                    sports = dev.phonerecall.olympia.OlympiaCards.card(sports, now),
+                    sports = dev.phonerecall.olympia.OlympiaCards.card(sports, now, dev.phonerecall.olympia.WatchApps.chooser(app)) { dev.phonerecall.olympia.WatchApps.quiet(app) },
                     weather = weather.takeIf { it.hasData }, venus = venus,
                     odyssey = dev.phonerecall.odyssey.OdysseyCards.home(roads.first, roads.second, now),
                     hearth = dev.phonerecall.hestia.HestiaCards.card(hearth, dev.phonerecall.hestia.HestiaCore.whereabouts.away(), now),
@@ -284,6 +286,7 @@ class AthenaViewModel(app: Application) : AndroidViewModel(app) {
                     digest = digest.map { it.title },
                     moment = if (s.sample) null else dev.phonerecall.moments.MomentsCore.card(getApplication(), now, pm.second, roads.first, weather.takeIf { it.hasData }, hearth, pm.first),
                     birthdays = if (s.sample) dev.phonerecall.brain.BirthdayBoard() else runCatching { dev.phonerecall.brain.BirthdayDay.board(getApplication(), cal.events, now) }.getOrDefault(dev.phonerecall.brain.BirthdayBoard()),
+                    touches = if (s.sample) emptyList() else dev.phonerecall.qol2.Touches.cards(getApplication(), now, cal.events, cur.availability[now.toLocalDate()]?.type == dev.phonerecall.data.DayType.WORKDAY),
                 )
                 if (!s.sample) dev.phonerecall.brain.BirthdayDay.armSoon(getApplication())
                 val board = CardEngine.build(inputs)
@@ -295,6 +298,8 @@ class AthenaViewModel(app: Application) : AndroidViewModel(app) {
                 NowBar.sync(getApplication(), pair.first.board, pair.second)
             }
         }
+        // Small touches: a tap or a timer changes the board at once, not on the next minute.
+        viewModelScope.launch { dev.phonerecall.qol2.Touches.prefs.collect { clock.value = ZonedDateTime.now() } }
         // Home-screen widgets follow Lemnos and the player from here on (throttled; nothing polls).
         dev.phonerecall.widgets.WidgetBus.watch(app)
     }
@@ -631,7 +636,14 @@ class AthenaViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Returns true when the action was handled; false means "preview only" for a sample card. */
     fun action(card: ScoredCard, action: CardAction): Boolean = when (action.role) {
-        ActionRole.ACK -> { record(card.learnKey, tap = true); editHome { it.copy(hidden = it.hidden + card.id) }; true }
+        // "Got it" is done with this card, like a swipe: this one goes, the next of its kind still shows. (It used to
+        // hide the whole kind for good, and did nothing on cards that can never be hidden.)
+        ActionRole.ACK -> {
+            record(card.learnKey, tap = true); dismiss(card)
+            // Got it on a sign-in alert: that app is one he uses.
+            if (dev.phonerecall.brain.KnownApps.appFromCard(card.id) != null) { val app = getApplication<Application>(); viewModelScope.launch(Dispatchers.IO) { dev.phonerecall.brain.KnownApps.learn(app, card.id) } }
+            true
+        }
         ActionRole.DISMISS -> { hide(card.id, card.learnKey); true }
         ActionRole.WEAR -> {
             record(card.learnKey, tap = true)
@@ -647,7 +659,7 @@ class AthenaViewModel(app: Application) : AndroidViewModel(app) {
             }
             true
         }
-        ActionRole.ALLOW_CALENDAR, ActionRole.OPEN_CLOSET, ActionRole.OPEN_TASKS, ActionRole.OPEN_OLYMPIA, ActionRole.OPEN_WEATHER, ActionRole.OPEN_ODYSSEY, ActionRole.OPEN_HESTIA, ActionRole.OPEN_ALARMS, ActionRole.ALARM_LINK, ActionRole.ALARM_OTHER, ActionRole.MAPS, ActionRole.OPEN_ARGO, ActionRole.OPEN_REVIEW -> { record(card.learnKey, tap = true); true }
+        ActionRole.ALLOW_CALENDAR, ActionRole.OPEN_CLOSET, ActionRole.OPEN_TASKS, ActionRole.OPEN_OLYMPIA, ActionRole.OPEN_WEATHER, ActionRole.OPEN_ODYSSEY, ActionRole.OPEN_HESTIA, ActionRole.OPEN_ALARMS, ActionRole.ALARM_LINK, ActionRole.ALARM_OTHER, ActionRole.MAPS, ActionRole.OPEN_ARGO, ActionRole.OPEN_REVIEW, ActionRole.LINK, ActionRole.WATCH -> { record(card.learnKey, tap = true); true }
         ActionRole.ALARM_SET -> {
             record(card.learnKey, tap = true)
             // payload: "6:45", or "14:30|label|proposal title"
@@ -774,6 +786,17 @@ class AthenaViewModel(app: Application) : AndroidViewModel(app) {
             record(card.learnKey, tap = action.role == ActionRole.MOMENT_GO || action.role == ActionRole.MOMENT_SNAP)
             val app = getApplication<Application>()
             viewModelScope.launch(Dispatchers.IO) { dev.phonerecall.moments.MomentsCore.act(app, action.role, action.payload) }
+            true
+        }
+        // Small touches run from the screen (they may open a picker or show Undo); here only the tap is learned.
+        ActionRole.TOUCH -> { record(card.learnKey, tap = !action.payload.orEmpty().endsWith("|later") && !action.payload.orEmpty().endsWith("|never")); true }
+        // One-tap agency: the screen fires it (an app's own action needs the activity); here only the tap is learned.
+        ActionRole.LIVE, ActionRole.LIVE_SEND -> { record(card.learnKey, tap = true); true }
+        ActionRole.PLAN_PICK -> {
+            record(card.learnKey, tap = true)
+            val (thread, at) = action.payload.orEmpty().split('|').let { it.getOrElse(0) { "" } to (it.getOrNull(1)?.toLongOrNull() ?: 0L) }
+            val app = getApplication<Application>()
+            viewModelScope.launch(Dispatchers.IO) { dev.phonerecall.brain.Agency.pickPlan(app, thread, at) }
             true
         }
         ActionRole.OPEN -> { record(card.learnKey, tap = true); false }

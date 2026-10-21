@@ -30,6 +30,39 @@ enum class MomentKind(val label: String, val context: Boolean) {
     TRASH("Trash night", true),
     STAPLE("Staples running low", true),
     CALL_HOME("The usual call home", true),
+    // Small touches (qol/): their rules live in QolRules.
+    CAR_SPOT("Where you parked", true),
+    /** No card: the switch for muting media at the office (qol/WorkMute). */
+    WORK_MUTE("Mute media at work", true),
+    /** No card: the switch for starting music when the car connects (qol/CarMusic). */
+    CAR_MUSIC("Music when the car connects", true),
+    NAVIGATE("Navigate at leave-by", true),
+    PACKAGE("Package at the door", true),
+    RENEWAL("Renewing tomorrow", true),
+    FLIGHT_KIT("Flight-day kit", true),
+    RIDE_HOME("Ride home after a late night", true),
+    STREET_PARKING("Street parking", true),
+    SKIP_ALARM("Skip the alarm on a day off", true),
+    CALL_CLASH("India clock before a call home", true),
+    SPOILER_SAFE("Spoiler-safe results", true),
+    BILL_DUE("Bill due", true),
+    REFUND_WATCH("Refund not in yet", true),
+    RETURN_BY("Return window", true),
+    PICKUP("Pickup reminder", true),
+    MEMBER_CARD("Member card at the store", true),
+    /** No card: the switch for the gas nudge when a drive starts (qol/Gas). */
+    GAS("Gas on the way", true),
+    STEPS("Walk nudge on a quiet day", true),
+    SPLIT("Split this charge", true),
+    /** No card: the switch for the ride and delivery Live Update chip (qol/LiveTrip). */
+    LIVE_TRIP("Ride and delivery chip", true),
+    /** A message card's "Later" chip (qol/Later); no switch. */
+    MESSAGE_LATER("Message later", false),
+    /** No card: the switch for the "Home in N min" reply chip while driving (qol/HomeEta). */
+    HOME_ETA("Home in N min reply", true),
+    FAMILY_DIGEST("Family groups: quiet nights, morning digest", true),
+    /** Iris's street parking rule, offered once (no switch). */
+    STREET_SEED("Street parking from Iris", false),
     LAUNDRY("Laundry", false), STEEP("Tea", false), WORKOUT("Workout", false), RECIPE("Recipe timers", false),
     SIGN("Parking sign", false), FLIGHT("Flight", false), EVENT("Event", false),
 }
@@ -49,10 +82,14 @@ data class MomentsPrefs(
     /** The key of the moment he last took or waved off, so the same one never comes back. */
     val handled: Map<MomentKind, String> = emptyMap(),
     val purchase: Purchase? = null,
-    /** Trash pickup weekday, once he said so; asked at most 3 evenings, one a day. */
-    val trashDay: java.time.DayOfWeek? = null,
+    /** Trash pickup weekday: Thursday, as the owner said (2026-10-20); null after he clears it in Themis, then asked at most 3 evenings, one a day. */
+    val trashDay: java.time.DayOfWeek? = java.time.DayOfWeek.THURSDAY,
     val trashAsks: Int = 0,
     val trashAskedDay: Long = 0,
+    /** When the evening-before reminder starts, minutes after midnight (Themis, qol/Bins). */
+    val trashMinute: Int = 19 * 60,
+    /** The pickup day was preset once (qol/Bins); clearing it in Themis then sticks. */
+    val trashPreset: Boolean = false,
     /** Grocery aliases from his corrections (alias to his name for it). */
     val aliases: Map<String, String> = emptyMap(),
     /** When family called (from call notifications he got): times only, the last 8 weeks. */
@@ -100,6 +137,8 @@ data class MomentContext(
     val nextAlarm: ZonedDateTime? = null,
     val staples: List<StapleDue> = emptyList(),
     val callSlot: CallSlot? = null,
+    /** The small touches' signals (qol/QolCore). */
+    val qol: dev.phonerecall.qol.QolSignals = dev.phonerecall.qol.QolSignals(),
 )
 
 /**
@@ -112,22 +151,27 @@ data class MomentCard(
     val teach: Map<String, (MomentsPrefs) -> MomentsPrefs> = emptyMap(),
     /** An option that opens another app on his tap: "app:<package>" or a web address for the browser. */
     val opens: Map<String, String> = emptyMap(),
+    /** Options that leave the card up ("Navigate to car" until he drives off). */
+    val keep: Set<String> = emptySet(),
 )
 
 object MomentRules {
     private val TIME = DateTimeFormatter.ofPattern("h:mm a", Locale.US)
 
-    /** The quiet rules. Not when off, snoozed today, resting, in quiet hours, or driving (leaving and parking excepted). */
+    /** Late at night these still come up: the way back to the car, an early leave-by. */
+    private val NIGHT = setOf(MomentKind.CAR_SPOT, MomentKind.NAVIGATE, MomentKind.FLIGHT_KIT, MomentKind.RIDE_HOME, MomentKind.STREET_PARKING)
+
+    /** The quiet rules. Not when off, snoozed today, resting, in quiet hours (NIGHT excepted), or driving (leaving and parking excepted). */
     fun open(kind: MomentKind, prefs: MomentsPrefs, now: ZonedDateTime, driving: Boolean): Boolean {
         val day = now.toLocalDate().toEpochDay()
         return kind !in prefs.never && prefs.snoozed[kind] != day && (prefs.restUntil[kind] ?: Long.MIN_VALUE) <= day &&
-            !QuietHours.quiet(now) && (!driving || kind == MomentKind.LEAVING || kind == MomentKind.PARKING)
+            (!QuietHours.quiet(now) || kind in NIGHT) && (!driving || kind == MomentKind.LEAVING || kind == MomentKind.PARKING)
     }
 
     /** At most one card: the most time-critical moment that is open and not handled. */
     fun pick(ctx: MomentContext, prefs: MomentsPrefs): MomentCard? {
         if (ctx.pending) return null
-        return sequenceOf<(MomentContext) -> MomentCard?>(::parking, ::leaving, ::battery, ::bedtime, ::hazard, { trash(it, prefs) }, ::cooking, ::callHome, ::staple)
+        return sequenceOf<(MomentContext) -> MomentCard?>(::parking, dev.phonerecall.qol.StreetParking::card, dev.phonerecall.qol.FamilyNight::card, dev.phonerecall.qol.RideHome::card, dev.phonerecall.qol.QolRules::navigate, dev.phonerecall.qol.FlightKit::card, ::leaving, ::battery, ::bedtime, ::hazard, dev.phonerecall.qol.QolRules::carSpot, dev.phonerecall.qol.Pickups::card, dev.phonerecall.qol.MemberCard::card, dev.phonerecall.qol.Deliveries::card, { trash(it, prefs) }, dev.phonerecall.qol.Bills::card, dev.phonerecall.qol.Split::card, dev.phonerecall.qol.Refunds::card, dev.phonerecall.qol.Returns::card, ::cooking, dev.phonerecall.qol.Renewals::card, dev.phonerecall.qol.SkipAlarm::card, dev.phonerecall.qol.Spoilers::card, ::callHome, dev.phonerecall.qol.Steps::card, dev.phonerecall.qol.IndiaClock::clashCard, ::staple, dev.phonerecall.qol.StreetParking::offer)
             .mapNotNull { it(ctx) }
             .firstOrNull { open(it.kind, prefs, ctx.now, ctx.driving) && prefs.handled[it.kind] != it.key }
     }
@@ -179,18 +223,22 @@ object MomentRules {
         return MomentCard(k, key, CardContent(title = title, facts = facts, actions = listOf(go, later(k, key), never(k, key))), fit = 26f, plans = mapOf("go" to plan))
     }
 
+    /** Under 35% and not charging, within an hour of leaving: his usual departure or the next event's leave-by (qol). */
     fun battery(ctx: MomentContext): MomentCard? {
         val b = ctx.battery ?: return null
-        val dep = ctx.departure ?: return null
-        if (b >= 25 || ctx.charging) return null
+        if (b >= 35 || ctx.charging || ctx.qol.busy) return null
         val ms = ctx.now.toInstant().toEpochMilli()
-        if (dep.toInstant().toEpochMilli() - ms !in 0..60 * 60_000L) return null
+        val event = ctx.qol.leave?.takeIf { it.leaveBy - ms in 0..60 * 60_000L }
+        val usual = ctx.departure?.takeIf { it.toInstant().toEpochMilli() - ms in 0..60 * 60_000L }
+        if (event == null && usual == null) return null
+        val eventFirst = event != null && (usual == null || event.leaveBy <= usual.toInstant().toEpochMilli())
+        val body = if (eventFirst) "Leave by ${TIME.format(Instant.ofEpochMilli(event!!.leaveBy).atZone(ctx.now.zone))} for ${event.title}." else "You usually leave at ${TIME.format(usual)}."
         val k = MomentKind.BATTERY
         val key = "${ctx.now.toLocalDate()}"
         return MomentCard(
             k, key,
             CardContent(
-                title = "Charge now: $b%", body = "You usually leave at ${TIME.format(dep)}.", status = "$b%", tone = Tone.ALERT,
+                title = "Charge now: $b%", body = body, status = "$b%", tone = Tone.ALERT,
                 actions = listOf(CardAction("Got it", ActionRole.MOMENT_GO, payload(k, key, "go")), never(k, key)),
             ),
             fit = 24f, plans = mapOf("go" to null),
@@ -217,11 +265,18 @@ object MomentRules {
         if (ctx.now.hour !in 18..22) return null
         val k = MomentKind.HAZARD
         val key = "${h.departure.toLocalDate()}"
+        // His alarm for that morning, moved earlier by the same minutes (a new alarm through Fates; Undo removes it).
+        val earlier = ctx.nextAlarm?.takeIf { it.toLocalDate() == h.departure.toLocalDate() && it.isBefore(h.departure) }?.minusMinutes(h.extraMinutes.toLong())
+        val alarm = earlier?.let { MomentPlan(k, "Alarm ${TIME.format(it)}, ${h.extraMinutes} min early for the snow", listOf(RawStep(ProposalKind.SET_ALARM, mapOf("hour" to "${it.hour}", "minute" to "${it.minute}", "label" to "Snow: leave early")))) }
         return MomentCard(
             k, key,
             CardContent(title = h.words, body = "${h.advice}.", status = "+${h.extraMinutes} min", tone = Tone.ACTIVE,
-                actions = listOf(CardAction("Got it", ActionRole.MOMENT_GO, payload(k, key, "go")), later(k, key), never(k, key))),
-            fit = 24f, plans = mapOf("go" to null),
+                actions = listOfNotNull(
+                    CardAction("Got it", ActionRole.MOMENT_GO, payload(k, key, "go")),
+                    alarm?.let { CardAction("Alarm ${h.extraMinutes} min earlier", ActionRole.MOMENT_GO, payload(k, key, "alarm")) },
+                    later(k, key), never(k, key),
+                )),
+            fit = 24f, plans = mapOf("go" to null, "alarm" to alarm),
         )
     }
 
@@ -244,7 +299,7 @@ object MomentRules {
                 ),
             )
         }
-        if (day != tomorrow || ctx.now.hour !in 20..22) return null
+        if (day != tomorrow || ctx.now.hour * 60 + ctx.now.minute < prefs.trashMinute || ctx.now.hour > 22) return null
         val key = "$today"
         val nine = today.atTime(21, 0).atZone(ctx.now.zone)
         val remind = if (ctx.now.isBefore(nine.minusMinutes(5))) MomentPlan(k, "Trash reminder at 9 PM", listOf(RawStep(ProposalKind.ADD_REMINDER, mapOf("at" to "${today}T21:00", "text" to "Trash goes out tonight")))) else null

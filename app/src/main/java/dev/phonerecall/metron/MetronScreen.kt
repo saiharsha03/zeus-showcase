@@ -173,7 +173,7 @@ fun MetronContent(usage: UsageSnapshot?, budget: Budget?, paired: Boolean, wide:
     val spend: @Composable () -> Unit = {
         Kicker("Athena this month", Modifier.padding(top = if (wide) Space.s else Space.xl, bottom = Space.xs))
         budget?.let { BudgetBlock(it) }
-        Line("One cap covers Delphi, the background mind, the circle and Metis. Alerts at 80% and 95%, once each.", Type.caption, c.ink3, Modifier.padding(top = Space.s).widthIn(max = 520.dp))
+        Line("One cap covers Athena (chat, tasks and background), the circle, Metis and the phone's quick calls. Alerts at 80% and 95%, once each.", Type.caption, c.ink3, Modifier.padding(top = Space.s).widthIn(max = 520.dp))
     }
     Column(Modifier.fillMaxSize()) {
         ScreenHeader(Place.USAGE.title(), gutter, emblem = Place.USAGE, subtitle = Place.USAGE.subtitle()) {

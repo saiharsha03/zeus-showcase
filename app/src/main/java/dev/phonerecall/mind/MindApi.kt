@@ -62,6 +62,8 @@ data class SessionInfo(
     val activeSeconds: Double = 0.0,
     val budgetCents: Long? = null,
     val title: String? = null,
+    /** Input tokens read so far (uncached plus cache reads), summed over every request: how big the session has grown. */
+    val tokens: Long = 0,
 )
 
 /** One thread of a session: the primary (Athena) or a child working for her. */
@@ -135,12 +137,25 @@ interface MindApi {
     fun updateMemory(storeId: String, memoryId: String, content: String): MemoryFile
     fun deleteMemory(storeId: String, memoryId: String)
 
+    /** One agent's sessions that aren't archived (GET /v1/sessions?agent_id=), for the fresh start. */
+    fun sessionsOf(agentId: String): List<SessionInfo> = emptyList()
+    /** POST /v1/sessions/{id}/archive: read-only from then on, nothing deleted. */
+    fun archiveSession(id: String) {}
+    /** Every deployment not archived whose name starts with [prefix]. */
+    fun deploymentsNamed(prefix: String): List<DeploymentInfo> = emptyList()
+
     /** Anthropic's model list (GET /v1/models), for the model book. Empty where there is none (tests). */
     fun models(): List<dev.phonerecall.models.ModelEntry> = emptyList()
 }
 
 /** A create whose reply never arrived: the server may or may not have done it. Look before retrying. */
 class AmbiguousFailure(cause: Throwable) : RuntimeException(cause.message, cause)
+
+/**
+ * The session takes no new user.message right now: it waits on a tool result (stop_reason requires_action,
+ * the API's "waiting") or is paused at its budget. Nothing was sent; queue it and send once the session is idle.
+ */
+class SessionBusy(val budget: Boolean, message: String) : RuntimeException(message)
 
 /** The model refused (400) for this account, e.g. Fable on a zero-data-retention org. */
 class ModelUnavailable(val model: String, message: String) : RuntimeException(message)

@@ -94,16 +94,21 @@ class MoreTest {
         val card = MomentRules.pick(MomentContext(at(20), hazard = snow), MomentsPrefs())!!
         assertEquals(MomentKind.HAZARD, card.kind)
         assertNull(MomentRules.pick(MomentContext(at(15), hazard = snow), MomentsPrefs()))
+        // With his 7:00 alarm that morning: one tap sets one 15 minutes earlier.
+        val alarmed = MomentRules.pick(MomentContext(at(20), hazard = snow, nextAlarm = at(7, 0, plus = 1)), MomentsPrefs())!!
+        assertEquals(listOf("Got it", "Alarm 15 min earlier", "Not now", "Never"), alarmed.content.actions.map { it.label })
+        assertEquals(mapOf("hour" to "6", "minute" to "45", "label" to "Snow: leave early"), alarmed.plans.getValue("alarm")!!.steps.single().args)
+        assertNull(card.plans["alarm"])
     }
 
     // ---- 5. trash night ----
 
     @Test fun trashAsksOnceThenRemindsTheEveningBefore() {
-        val ask = MomentRules.pick(MomentContext(at(19, 30)), MomentsPrefs())!!
+        val ask = MomentRules.pick(MomentContext(at(19, 30)), MomentsPrefs(trashDay = null))!!
         assertEquals("Is tomorrow trash pickup?", ask.content.title)
-        val yes = ask.teach.getValue("yes")(MomentsPrefs())
+        val yes = ask.teach.getValue("yes")(MomentsPrefs(trashDay = null))
         assertEquals(DayOfWeek.WEDNESDAY, yes.trashDay)
-        val no = ask.teach.getValue("no")(MomentsPrefs())
+        val no = ask.teach.getValue("no")(MomentsPrefs(trashDay = null))
         assertNull(MomentRules.pick(MomentContext(at(19, 45)), no))
         assertNull(MomentRules.pick(MomentContext(at(19, 30)), MomentsPrefs(trashAsks = 3)))
         // Next Tuesday at 8:15 PM: the reminder, with a 9 PM option.
@@ -111,6 +116,9 @@ class MoreTest {
         assertEquals("Trash goes out tonight", tonight.content.title)
         assertEquals("2026-10-27T21:00", tonight.plans.getValue("nine")!!.steps.single().args["at"])
         assertNull(MomentRules.pick(MomentContext(at(20, 15, plus = 8)), yes))
+        // His reminder time (Themis): from 7 PM by default, later if he says so.
+        assertEquals("Trash goes out tonight", MomentRules.pick(MomentContext(at(19, 5, plus = 7)), yes)?.content?.title)
+        assertNull(MomentRules.pick(MomentContext(at(19, 5, plus = 7)), yes.copy(trashMinute = 19 * 60 + 30)))
     }
 
     // ---- 6. staples, with aliases ----

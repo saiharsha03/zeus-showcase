@@ -26,6 +26,10 @@ object Urls {
     fun f1Laps(year: Int, circuit: String) = "$JOLPICA/$year/circuits/$circuit/results/1.json"
     fun f1Timing() = "$ESPN/racing/f1/scoreboard"
 
+    /** A league's day, for big matches he doesn't follow ([BigMatch.LEAGUES]). */
+    fun leagueDay(league: String, ms: Long) =
+        if (league == "nfl") "$ESPN/football/nfl/scoreboard?dates=${day(ms)}" else "$ESPN/soccer/$league/scoreboard?dates=${day(ms)}"
+
     /** The live board for a match: its league's scoreboard for the match day. */
     fun board(m: Match) = when (m.sport) {
         Sport.SOCCER -> "$ESPN/soccer/${m.league}/scoreboard?dates=${day(m.start)}"
@@ -47,7 +51,7 @@ object Fetch {
     fun get(url: String): String {
         NetGate.check(url)
         val t0 = System.currentTimeMillis()
-        val c = URL(url).openConnection() as HttpURLConnection
+        val c = dev.phonerecall.brain.TlsGuard.open(url)
         try {
             c.connectTimeout = 10_000
             c.readTimeout = 15_000
@@ -104,6 +108,7 @@ class Sync(private val c: Context, private val get: (String) -> String = Fetch::
                 }
             }
         }.onFailure { failed++ }
+        val big = runCatching { bigMatches(s.settings, now) }.getOrNull()
         // Results are kept for half a year, so a team between seasons (the IPL, the NFL in spring) still has a page.
         val keepFrom = now - 183 * 86_400_000L
         return OlympiaStore.update(c) { cur ->
@@ -113,11 +118,29 @@ class Sync(private val c: Context, private val get: (String) -> String = Fetch::
             cur.copy(
                 matches = (kept + fresh.values)
                     .filter { it.start >= keepFrom }.sortedBy { it.start },
-                teams = teams, podium = podium,
+                teams = teams, podium = podium, big = big ?: cur.big.filter { it.start > now },
                 refreshedAt = if (failed < followed.size) now else cur.refreshedAt,
                 live = cur.live.filterValues { it.updatedAt >= now - 2 * 86_400_000L },
             )
         }
+    }
+
+    /**
+     * Today's and tomorrow's boards of the big leagues, in the sports he follows something in: two
+     * small reads per league, twice a day. Null when every read failed, so the old list stays.
+     */
+    private fun bigMatches(st: OlympiaSettings, now: Long): List<Match>? {
+        val sports = BigMatch.sports(st)
+        val leagues = BigMatch.LEAGUES.filterKeys { it in sports }.flatMap { (sport, ls) -> ls.map { sport to it } }
+            .filter { (_, l) -> Competition.of(l)?.let { it in st.competitions } ?: true }
+        if (leagues.isEmpty()) return emptyList()
+        var ok = false
+        val out = leagues.flatMap { (sport, l) ->
+            listOf(now, now + 86_400_000L).flatMap { day ->
+                runCatching { Espn.scoreboard(get(Urls.leagueDay(l, day)), sport) }.onSuccess { ok = true }.getOrDefault(emptyList())
+            }
+        }
+        return if (ok) BigMatch.pick(out.distinctBy { it.id }, st) else null
     }
 
     /** Two followed teams in one match: one row, both keys. */
@@ -145,7 +168,7 @@ class Sync(private val c: Context, private val get: (String) -> String = Fetch::
                 l.copy(match = l.match.copy(id = m.id, title = m.title, start = m.start, teams = m.teams, circuit = m.circuit))
             }
         } ?: return null
-        live = live.copy(match = live.match.copy(teams = m.teams), lineups = live.lineups.ifEmpty { prev?.lineups.orEmpty() })
+        live = live.copy(match = live.match.copy(teams = m.teams, broadcasts = live.match.broadcasts.ifEmpty { m.broadcasts }), lineups = live.lineups.ifEmpty { prev?.lineups.orEmpty() })
         if (live.lineups.isEmpty() && MatchDay.hasLineups(m) && polls % 5 == 0) live = withLineups(live)
         val seen = OlympiaStore.seen(c, m.id)
         val fresh = Moments.fresh(live.moments, seen)

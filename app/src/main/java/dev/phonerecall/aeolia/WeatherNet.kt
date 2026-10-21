@@ -56,7 +56,7 @@ object WeatherNet {
         repeat(4) {
             require(url)
             val t0 = System.currentTimeMillis()
-            val c = URL(url).openConnection() as HttpURLConnection
+            val c = dev.phonerecall.brain.TlsGuard.open(url)
             try {
                 c.instanceFollowRedirects = false
                 c.connectTimeout = 10_000

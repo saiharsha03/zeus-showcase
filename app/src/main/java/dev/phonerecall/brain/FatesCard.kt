@@ -96,7 +96,7 @@ private fun editable(kind: ProposalKind): List<Pair<String, String>> = when (kin
     ProposalKind.HOME_CONTROL, ProposalKind.LIGHTS -> listOf("action" to "on, off, brightness, color_temp or color", "value" to "Value (40, 2700, blue)")
     ProposalKind.PLACE_CALL -> listOf("via" to "whatsapp_video, whatsapp_voice or phone")
     ProposalKind.BOOKMARK_FOR -> listOf("note" to "What to tell them")
-    ProposalKind.ADD_AUTO_APPROVE, ProposalKind.SET_SCHEDULE, ProposalKind.SET_TRIPS, ProposalKind.SWITCH_MODEL -> emptyList()
+    ProposalKind.ADD_AUTO_APPROVE, ProposalKind.SET_SCHEDULE, ProposalKind.SET_TRIPS, ProposalKind.SWITCH_MODEL, ProposalKind.TASK_BUDGET, ProposalKind.LEARN_SHORTCUT, ProposalKind.IDEA, ProposalKind.BUILD_APP, ProposalKind.SET_ROUTINE -> emptyList()
 }
 
 /** A schedule prompt longer than this opens in full before Confirm. */
@@ -148,7 +148,10 @@ fun FatesCard(
         val prompt = p.steps.firstNotNullOfOrNull { s -> Bindings.schedulePrompt(s)?.takeIf { s.selected } }
         val long = prompt != null && prompt.length > PROMPT_PEEK
         var whole by remember(p) { mutableStateOf(false) }
-        if (p.steps.size == 1) {
+        // Athena's offers (learned shortcuts, ideas): one row each, answered on its own.
+        val answerCard = p.steps.all { it.kind == ProposalKind.LEARN_SHORTCUT || it.kind == ProposalKind.IDEA }
+        if (answerCard && pending) AnswerRows(p, ctx)
+        else if (p.steps.size == 1) {
             for ((label, value) in Validate.facts(p.steps[0], zone)) if (label != "Each run") FactRow(label, value)
         } else {
             p.steps.forEachIndexed { i, s ->
@@ -224,6 +227,8 @@ fun FatesCard(
                     TextAction("Review again", { seen = cb.bind(p); changed = null }, emphasis = true)
                     TextAction("Reject", { cb.reject(p.id) })
                 }
+                // Each row answers itself; the card closes once every row has an answer.
+                pending && answerCard -> Unit
                 pending && editing == null -> {
                     // A question gets Yes and No; everything else Confirm and Reject.
                     val question = p.steps.size == 1 && p.steps[0].kind in setOf(ProposalKind.SET_RELATION, ProposalKind.ADD_AUTO_APPROVE)
@@ -240,6 +245,7 @@ fun FatesCard(
                     if (p.steps.size == 1 && editable(p.steps[0].kind).isNotEmpty()) TextAction("Edit", { editing = 0 })
                     TextAction(if (model) "Not now" else if (question) "No" else "Reject", { cb.reject(p.id) })
                     if (p.steps.any { it.kind == ProposalKind.ADD_BIRTHDAY }) TextAction("Not a birthday", { cb.notBirthday(p.id) })
+                    // A learned shortcut: Yes, Not now (a month), or Never (never asked again).
                 }
                 p.undoable -> TextAction("Undo", { cb.undo(p.id) })
             }
@@ -278,6 +284,31 @@ private fun EditStep(s: Step, onCancel: () -> Unit, onSave: (Map<String, String>
         Row(horizontalArrangement = Arrangement.spacedBy(Space.xs)) {
             TextAction("Save", { onSave(values.toMap()) }, emphasis = true)
             TextAction("Cancel", onCancel)
+        }
+    }
+}
+
+/**
+ * A grouped offer: per row Yes / Not now / Never (a shortcut) or Yes / No (an idea), with her one-line why. Not now,
+ * Never and No count at once; the Yes rows apply together, with Undo, once every row is answered.
+ */
+@Composable
+private fun AnswerRows(p: Proposal, ctx: android.content.Context) {
+    val c = Athena.colors
+    var answers by remember(p.id) { mutableStateOf(dev.phonerecall.shortcuts.ShortcutsCore.answers(ctx, p.id)) }
+    p.steps.forEachIndexed { i, s ->
+        Column(Modifier.fillMaxWidth().topRule(c.rule).padding(vertical = Space.xs)) {
+            Line(if (s.kind == ProposalKind.IDEA) s.payload["title"].orEmpty() else s.summary.replaceFirstChar { it.uppercase() }, Type.body, c.ink)
+            s.payload["why"]?.let { Line(it, Type.small, c.ink2) }
+            if (s.kind == ProposalKind.IDEA) Line(if (s.payload["action"] != null) "Becomes a learned shortcut" else "Needs a code change: drafted for Prometheus", Type.caption, c.ink3)
+            val mine = answers[i]
+            Row(horizontalArrangement = Arrangement.spacedBy(Space.xs), verticalAlignment = Alignment.CenterVertically) {
+                val choices = if (s.kind == ProposalKind.IDEA) listOf("yes" to "Yes", "no" to "No") else listOf("yes" to "Yes", "notnow" to "Not now", "never" to "Never")
+                for ((v, word) in choices) TextAction(word, {
+                    answers = answers + (i to v)
+                    Thread { dev.phonerecall.shortcuts.ShortcutsCore.answer(ctx, p.id, i, v) }.start()
+                }, emphasis = mine == v, enabled = mine == null)
+            }
         }
     }
 }

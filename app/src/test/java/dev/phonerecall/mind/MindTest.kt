@@ -38,20 +38,22 @@ class Rig(var now: Long = 1_792_000_000_000L) {
     val fates = Fates(store, FakeState(), exec, { _, _, _ -> }, { now })
     val extras = FakeExtras()
     val tools = MindTools(ToolBox(EngineTest.EmptyReads, fates), extras) { Sanitizer(context.names(), context.sealed()) }
-    val mind = Mind(api, kv, tools, sink, context, ledger, clock = { now }, driveMs = 10_000L).also { extras.mind = it }
+    /** What the mind told Clio. */
+    val traces = ArrayList<String>()
+    val mind = Mind(api, kv, tools, sink, context, ledger, clock = { now }, driveMs = 10_000L, trace = { e, d -> traces += "$e: $d" }).also { extras.mind = it }
 }
 
 class SetupTest {
     @Test fun setupCreatesEverythingOnceAndReusesTheIds() {
         val r = Rig()
         val first = r.mind.ensure()
-        // One environment, one memory store, six protégés + Athena, four schedules.
+        // One environment, one memory store, six protégés + Athena, five schedules.
         assertEquals(1, r.api.environments.size)
         assertEquals(1, r.api.stores.size)
         assertEquals(7, r.api.agents.size)
-        assertEquals(4, r.api.deployments.size)
+        assertEquals(5, r.api.deployments.size)
         val creates = r.api.creates
-        assertEquals(13, creates)
+        assertEquals(14, creates)
         // Every later sync: nothing is created or updated again.
         repeat(3) { assertEquals(first, r.mind.ensure()) }
         assertEquals(creates, r.api.creates)
@@ -69,10 +71,16 @@ class SetupTest {
         // Children get no proposal tools.
         assertTrue(annabeth.tools.none { it.name in MindTools.WRITES })
         assertTrue(athena.tools.any { it.name == "add_task" })
-        // Agora: Athena posts; her circle doesn't. Five more than the circle (post_agora, the two schedule tools, report_check, propose_trips) plus the dream's two fact tools.
+        // Agora: Athena posts; her circle doesn't. Seven more than the circle (post_agora, the two schedule tools, report_check, propose_trips, spawn_task, ask_prometheus) plus the dream's two fact tools.
         assertTrue(athena.tools.any { it.name == MindTools.AGORA })
         assertTrue(annabeth.tools.none { it.name == MindTools.AGORA })
-        assertEquals(r.tools.specs(circle = true).size + MindTools.WRITES.size + 5 + MindTools.FACTS.size, r.tools.specs(circle = false).size)   // post_agora, read_schedules, propose_schedule, report_check, propose_trips
+        assertEquals(r.tools.specs(circle = true).size + MindTools.WRITES.size + 7 + MindTools.FACTS.size + MindTools.HABITS.size, r.tools.specs(circle = false).size)   // post_agora, read_schedules, propose_schedule, report_check, propose_trips, spawn_task, ask_prometheus; read_habits, propose_shortcuts, propose_ideas
+        // The chat is her now: she reads what the old phone chat read (closet, music, alarms), and only she spawns tasks.
+        assertTrue(MindTools.PHONE_READS.all { n -> athena.tools.any { it.name == n } })
+        assertTrue(athena.tools.any { it.name == MindTools.SPAWN })
+        assertTrue(annabeth.tools.none { it.name == MindTools.SPAWN })
+        // read_zeus is a read: Athena and every protégé get it (one more tool each).
+        assertTrue(athena.tools.any { it.name == ZeusRead.NAME } && annabeth.tools.any { it.name == ZeusRead.NAME })
         assertTrue(athena.tools.any { it.name == MindTools.TRIPS })
         assertTrue(annabeth.tools.none { it.name == MindTools.TRIPS })
         assertTrue(annabeth.tools.none { it.name in MindTools.SCHEDULE })
@@ -248,7 +256,7 @@ class BudgetTest {
         r.mind.sync()
         r.ledger.spent = r.ledger.capCents
         r.mind.sync()
-        assertEquals(4, r.api.paused.size)
+        assertEquals(5, r.api.paused.size)
         r.ledger.capCents = 15_000
         r.mind.sync()
         assertEquals(0, r.api.paused.size)
@@ -349,9 +357,9 @@ class MemoryStoreTest {
 }
 
 class ScheduleTest {
-    @Test fun fourSchedulesInHisZoneOutsideTheDstWindow() {
+    @Test fun fiveSchedulesInHisZoneOutsideTheDstWindow() {
         val specs = Schedules.specs(ZoneId.of("America/New_York"))
-        assertEquals(listOf("0 6 * * *", "0 20 * * *", "0 9 * * 0", "0 3 * * *"), specs.map { it.cron })
+        assertEquals(listOf("0 6 * * *", "0 20 * * *", "0 9 * * 0", "0 3 * * *", "0 10 * * 0"), specs.map { it.cron })
         assertTrue(specs.all { it.zone == "America/New_York" })
         // US Eastern skips 2:00-3:00 in spring and repeats 1:00-2:00 in fall: 3:00 AM (the dream) always happens once.
         assertTrue(specs.all { it.cron.split(' ')[1].toInt() !in 1..2 })

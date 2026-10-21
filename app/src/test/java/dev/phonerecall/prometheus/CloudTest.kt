@@ -20,12 +20,14 @@ class FakeForgeApi : ForgeApi {
     val sessions = LinkedHashMap<String, SessionInfo>()
     val nonces = HashMap<String, String>()
     var repo: RepoMount? = null
+    var vault: String? = "unset"
+    val budgets = ArrayList<Long>()
     var agentCreates = 0
     var agentUpdates = 0
     var loseNextSession = false
 
     override fun findAgent(name: String): AgentRef? = null
-    override fun createCodeAgent(spec: CodeAgentSpec): AgentRef { agentCreates++; sent += listOf(spec.name, spec.description, spec.system); return AgentRef("agent_p", 1) }
+    override fun createCodeAgent(spec: CodeAgentSpec): AgentRef { agentCreates++; specs += spec;sent += listOf(spec.name, spec.description, spec.system); return AgentRef("agent_p", 1) }
     override fun updateCodeAgent(ref: AgentRef, spec: CodeAgentSpec): AgentRef { agentUpdates++; sent += spec.system; return ref.copy(version = ref.version + 1) }
     override fun findEnvironment(name: String): String? = null
     override fun createLimitedEnvironment(name: String, hosts: List<String>): String { sent += hosts; return "env_p" }
@@ -33,8 +35,8 @@ class FakeForgeApi : ForgeApi {
     override fun createVault(name: String): String { sent += name; return "vlt_p" }
     override fun putSecret(vaultId: String, secretName: String, value: String, hosts: List<String>) { secrets += secretName to value; sent += hosts }
     override fun findSession(nonce: String) = nonces[nonce]?.let { sessions[it] }
-    override fun createRepoSession(agent: AgentRef, environmentId: String, vaultId: String, repo: RepoMount, title: String, nonce: String, budgetCents: Long, firstMessage: String): SessionInfo {
-        this.repo = repo
+    override fun createRepoSession(agent: AgentRef, environmentId: String, vaultId: String?, repo: RepoMount, title: String, nonce: String, budgetCents: Long, firstMessage: String): SessionInfo {
+        this.repo = repo; this.vault = vaultId; budgets += budgetCents
         sent += listOf(title, nonce, firstMessage, repo.toString())
         val s = SessionInfo("sesn_${sessions.size + 1}", "running", budgetCents = budgetCents, title = title)
         sessions[s.id] = s; nonces[nonce] = s.id
@@ -42,7 +44,10 @@ class FakeForgeApi : ForgeApi {
         return s
     }
     override fun session(id: String) = sessions.getValue(id)
+    val results = ArrayList<Triple<String, String, Boolean>>()
+    val specs = ArrayList<CodeAgentSpec>()
     override fun events(sessionId: String): List<MindEvent> = emptyList()
+    override fun sendToolResult(sessionId: String, toolUseId: String, text: String, isError: Boolean) { results += Triple(toolUseId, text, isError); sent += text }
     override fun interrupt(sessionId: String, threadId: String?) { sessions[sessionId] = sessions.getValue(sessionId).copy(status = "idle") }
 }
 

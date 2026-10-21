@@ -113,6 +113,8 @@ class OlympiaStoreTest {
         )
         val s = Sync(c) { url -> asked += url; dev.phonerecall.brain.NetGate.check(url); read(files[url] ?: throw java.io.IOException("no sample")) }.refresh(now)
         assertTrue(asked.all { dev.phonerecall.brain.NetGate.allows(it) })
+        // Big matches: today's and tomorrow's boards of the big leagues, on the same host.
+        assertTrue(Urls.leagueDay("uefa.champions", now) in asked && Urls.leagueDay("nfl", now + 86_400_000L) in asked)
         assertEquals("1st in AFC East", s.teams["buf"]!!.standing)
         assertEquals("1st in Spanish LALIGA", s.teams["bar"]!!.standing)
         assertEquals("7-6", s.teams["pbks"]!!.record)

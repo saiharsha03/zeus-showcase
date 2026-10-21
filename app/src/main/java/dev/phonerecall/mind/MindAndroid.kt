@@ -16,6 +16,8 @@ import dev.phonerecall.brain.BrainReads
 import dev.phonerecall.brain.Different
 import dev.phonerecall.brain.CalendarChoice
 import dev.phonerecall.brain.DelphiExtras
+import dev.phonerecall.brain.LineKind
+import kotlin.concurrent.withLock
 import dev.phonerecall.brain.Nano
 import dev.phonerecall.brain.NanoModel
 import dev.phonerecall.brain.ProposalStatus
@@ -124,26 +126,89 @@ class MindHost(private val app: Context, private val core: BrainCore) : MindSink
             r.exceptionOrNull()?.let { dev.phonerecall.clio.Clio.error("alexandria", it) }
         } finally { indexing.set(false) }
     }
-    private val tools = MindTools(ToolBox(reads, core.fates, alarms = dev.phonerecall.brain.AlarmWatch.get(app), trips = dev.phonerecall.argo.ArgoTools(app)), this, dev.phonerecall.vault.VaultCore.get(app).tools) { Sanitizer(names(), sealed()) }
-    val mind = Mind(
+    private val tools = MindTools(ToolBox(reads, core.fates, music = dev.phonerecall.music.MusicCore.get(app), alarms = dev.phonerecall.brain.AlarmWatch.get(app), trips = dev.phonerecall.argo.ArgoTools(app)), this, dev.phonerecall.vault.VaultCore.get(app).tools) { mind.sanitizer() }
+    val mind: Mind = Mind(
         SdkMindApi({ core.vault.read() }), kv, tools, this, this, this,
-        extraFiles = { dev.phonerecall.theogony.TheogonyEngine.savedFiles(kv) },
+        extraFiles = { dev.phonerecall.theogony.TheogonyEngine.savedFiles(kv) + dev.phonerecall.fresh.GenesisHub.get(app).files() },
         proactive = { dev.phonerecall.theogony.TheogonyHub.get(app).proactiveReady() },
+        handoffs = SealedHandoffs(kv),
     )
-    private val lock = Any()
+    /** One network job at a time on the mind. A lock (not synchronized) so the chat can see it is held and say so. */
+    private val lock = java.util.concurrent.locks.ReentrantLock()
 
-    fun <T> locked(block: Mind.() -> T): T = synchronized(lock) { block(mind) }
+    fun <T> locked(block: Mind.() -> T): T = lock.withLock { block(mind) }
+
+    // ---- his chat with Athena (the chat screen and the assistant sheet) ----
+
+    private val _chatStatus = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
+    /** The chat's one state word while a message is on its way or she is answering; null when she is done. */
+    val chatStatus: kotlinx.coroutines.flow.StateFlow<String?> = _chatStatus
+    private val delivering = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    /** His message: kept on the phone at once, then delivered to her session in order. Never blocks the caller. */
+    fun ask(chat: Long, text: String, pre: List<String> = emptyList()) {
+        mind.queueChat(chat, text, pre)
+        deliverSoon()
+    }
+
+    /**
+     * One delivery thread drains the queue. While the mind is busy (a sync, a heartbeat) the chat says so and the
+     * message goes next; when her session is waiting on something it stays queued and the flush worker tries again.
+     */
+    fun deliverSoon() { Thread({ deliverNow() }, "zeus-athena-chat").start() }
+
+    /** Blocking: drains the queue (the flush worker calls it too). Returns at once if a delivery is already running. */
+    fun deliverNow() {
+        if (!delivering.compareAndSet(false, true)) return
+        run {
+            var held = false
+            try {
+                while (mind.chatQueue().isNotEmpty()) {
+                    if (lock.isLocked) _chatStatus.value = Mind.BUSY_LINE
+                    val r = runCatching { locked { deliverChat { _chatStatus.value = it } } }
+                    val first = mind.chatQueue().firstOrNull() ?: break
+                    val e = r.exceptionOrNull()
+                    if (e != null) {
+                        dev.phonerecall.clio.Clio.error("mind", e)
+                        val words = dev.phonerecall.brain.AthenaEngine.plainError(e)
+                        // Offline: kept, and the flush worker (network required) sends it. Anything else: said once, dropped.
+                        if (e is AmbiguousFailure || words.startsWith("No connection")) {
+                            held = true
+                            chatLine(first.chat, LineKind.NOTE, "No connection to Athena. Your message is kept and goes when the phone is back online.")
+                            MindWork.flushSoon(app, 60_000L)
+                        } else { mind.dropChat(first.tag); chatLine(first.chat, LineKind.ERROR, words) }
+                        break
+                    }
+                    when (r.getOrNull()?.delivery) {
+                        Mind.Delivery.BUSY -> { held = true; _chatStatus.value = Mind.BUSY_LINE; MindWork.flushSoon(app, 20_000L); break }
+                        Mind.Delivery.NO_SESSION -> { mind.dropChat(first.tag); chatLine(first.chat, LineKind.ERROR, "This month's cap is reached. Raise it in Themis to keep talking to Athena."); break }
+                        else -> Unit
+                    }
+                }
+            } finally {
+                if (!held) _chatStatus.value = null
+                delivering.set(false)
+                core.changed()
+            }
+        }
+    }
+
+    private fun chatLine(chat: Long, kind: LineKind, text: String) {
+        if (chat <= 0) return
+        core.db.addLine(chat, kind, text)
+        core.changed()
+    }
 
     /** A derived event for the next batch. High ones go now (one worker, network required). */
     fun offer(n: MindNote) {
         if (!core.vault.has()) return
-        val now = synchronized(lock) { HeartbeatNotes.add(kv, n.copy(at = if (n.at == 0L) System.currentTimeMillis() else n.at)); mind.batcher.offer(n) }
+        val now = lock.withLock { HeartbeatNotes.add(kv, n.copy(at = if (n.at == 0L) System.currentTimeMillis() else n.at)); mind.batcher.offer(n) }
         MindWork.flushSoon(app, if (now) 0 else mind.batcher.delay())
     }
 
-    fun metisAllowed(): Boolean = synchronized(lock) { TopTierCaps.allowed(mind.circleCents(Metis.THREAD), mind.circleCents(Protege.ANNABETH.agentName)).metis } && kv.get("metis.unavailable") == null
+    fun metisAllowed(): Boolean = lock.withLock { TopTierCaps.allowed(mind.circleCents(Metis.THREAD), mind.circleCents(Protege.ANNABETH.agentName)).metis } && kv.get("metis.unavailable") == null
 
-    fun addAdvisorSpend(micros: Long) = synchronized(lock) { mind.addCircle(Metis.THREAD, (micros + 9_999) / 10_000) }
+    fun addAdvisorSpend(micros: Long) = lock.withLock { mind.addCircle(Metis.THREAD, (micros + 9_999) / 10_000) }
 
     // ---- MindSink ----
 
@@ -153,13 +218,80 @@ class MindHost(private val app: Context, private val core: BrainCore) : MindSink
         core.changed()
     }
 
+    override fun cardWithActions(title: String, body: String, hours: Int, actionsOf: String, draft: String?) {
+        val now = System.currentTimeMillis()
+        val id = core.db.addCard(title, body, now, now + hours * 3_600_000L)
+        // The buttons stay on the phone; an unknown or stale ref leaves a plain card.
+        dev.phonerecall.brain.LiveActions.borrow(id, actionsOf, draft)
+        core.changed()
+    }
+
     override fun propose(title: String?, steps: List<RawStep>, proposer: String): String = when (val r = core.fates.propose(steps, title, null, proposer)) {
         is ProposeResult.Created -> "Proposal #${r.proposal.id}: ${r.proposal.title}"
         is ProposeResult.Invalid -> "Not proposed: ${r.reason}"
     }
 
     override fun log(actor: String, action: String, detail: String) = core.audit.log(actor, action, detail)
-    override fun changed() = core.changed()
+    override fun changed() {
+        core.changed()
+        if (mind.openTasks().isNotEmpty()) MindWork.tasksSoon(app)
+    }
+
+    /** A draft he will send loses its AI-isms on screen (the session keeps her words). */
+    override fun chatReply(chat: Long, text: String) {
+        val asked = mind.chatQueue().firstOrNull { it.chat == chat }?.text ?: lastAsk(chat)
+        chatLine(chat, LineKind.ATHENA, if (dev.phonerecall.oneiroi.Humanizer.asksForDraft(asked)) dev.phonerecall.oneiroi.Humanizer.fix(text).text else text)
+    }
+
+    override fun chatProposal(chat: Long, id: Long, title: String) {
+        if (chat <= 0) return
+        core.db.addLine(chat, LineKind.PROPOSAL, title, id)
+        core.changed()
+    }
+
+    /** A task's result: a line from her in his latest chat. */
+    override fun chatNote(key: String, text: String) {
+        val chat = core.db.latestChat() ?: core.db.newChat()
+        chatLine(chat, LineKind.ATHENA, text)
+        dev.phonerecall.clio.Clio.info("mind", "task result posted", key)
+    }
+
+    override fun sessionStarted(day: String) {
+        val chat = core.db.latestChat() ?: core.db.newChat()
+        val words = runCatching { DateTimeFormatter.ofPattern("EEE MMM d", Locale.US).format(LocalDate.parse(day)) }.getOrDefault(day)
+        core.db.addLine(chat, LineKind.DIVIDER, "New session · $words")
+        core.changed()
+    }
+
+    override fun pending(): String = core.db.all().filter { it.status == ProposalStatus.PENDING }.take(10).joinToString("; ") { it.title }
+
+    /** His last turns with her across every chat, oldest first. */
+    override fun recentTurns(n: Int): List<String> = core.db.history(n * 3).map { it.second }
+        .filter { it.kind == LineKind.USER || it.kind == LineKind.ATHENA }.takeLast(n)
+        .map { (if (it.kind == LineKind.USER) "The owner: " else "Athena: ") + it.text.take(600) }
+
+    /**
+     * search_chats: his past conversations with her (and task results), newest days first. Plain word match on the
+     * phone; the lines are opened from the sealed transcript only for this and only the best few go back, sanitized.
+     */
+    override fun habits(): String = dev.phonerecall.shortcuts.ShortcutsCore.habitsJson(app)
+    override fun offerShortcuts(input: Map<String, Any?>): String = dev.phonerecall.shortcuts.ShortcutsCore.offerShortcuts(app, input)
+    override fun offerIdeas(input: Map<String, Any?>): String = dev.phonerecall.shortcuts.ShortcutsCore.offerIdeas(app, input)
+    override fun homeRoutines(): String = dev.phonerecall.hestia.HestiaRoutines.readJson(app)
+    override fun proposeRoutine(input: Map<String, Any?>): String = dev.phonerecall.hestia.HestiaRoutines.propose(app, input)
+
+    override fun searchChats(query: String, days: Int): String {
+        if (ChatSearch.words(query).isEmpty()) return "{\"results\":[],\"note\":\"Give at least one word of three letters or more.\"}"
+        val since = System.currentTimeMillis() - days.coerceIn(1, 365) * 86_400_000L
+        val fmt = DateTimeFormatter.ofPattern("EEE MMM d, h:mm a", Locale.US)
+        val turns = core.db.linesSince(since).map { it.second }.filter { it.kind == LineKind.USER || it.kind == LineKind.ATHENA }
+            .map { ChatSearch.Turn(it.at, if (it.kind == LineKind.USER) "The owner" else "Athena", it.text) }
+        return com.anthropic.core.jsonMapper().writeValueAsString(mapOf("results" to ChatSearch.rank(turns, query).map { t ->
+            mapOf("when" to fmt.format(Instant.ofEpochMilli(t.at).atZone(zone)), "who" to t.who, "text" to mind.sanitizer().chat(t.text.take(400)).ifBlank { "[stays on the phone]" })
+        }))
+    }
+
+    private fun lastAsk(chat: Long): String = core.db.lines(chat).lastOrNull { it.kind == LineKind.USER }?.text.orEmpty()
 
     override fun briefLine(line: String) {
         dev.phonerecall.brief.BriefStore.setLede(app, java.time.LocalDate.now(zone), line)
@@ -188,7 +320,7 @@ class MindHost(private val app: Context, private val core: BrainCore) : MindSink
             { "Not asked: ${it.message}" },
         )
 
-    override fun schedules(): String = synchronized(lock) {
+    override fun schedules(): String = lock.withLock {
         val z = ZoneId.of(Schedules.zone(zone))
         val ids = mind.deploymentIds()
         mind.book.jobs().joinToString("\n") { j ->
@@ -220,6 +352,9 @@ class MindHost(private val app: Context, private val core: BrainCore) : MindSink
         }
     }
 
+    override fun askPrometheus(input: Map<String, Any?>): String =
+        dev.phonerecall.prometheus.PrometheusCore.get(app).assess(input["title"]?.toString().orEmpty(), input["need"]?.toString().orEmpty(), input["context"]?.toString().orEmpty())
+
     override fun recordFinding(input: Map<String, Any?>): String = runCatching { dev.phonerecall.argo.Argo.finding(app, input) }.getOrElse { "Not recorded: ${it.message}" }
 
     override fun proposeTrips(input: Map<String, Any?>): String = runCatching { dev.phonerecall.argo.Argo.proposeTrips(app, input) }.getOrElse { "Not proposed: ${it.message}" }
@@ -250,6 +385,8 @@ class MindHost(private val app: Context, private val core: BrainCore) : MindSink
         }
         val jobs = mind.jobs().filter { it.status !in setOf("done", "failed", "cancelled") }
         if (jobs.isNotEmpty()) { append("\n## Long jobs open\n"); jobs.forEach { append("- ${it.id}: ${it.title} (${it.status})\n") } }
+        val tasks = mind.openTasks()
+        if (tasks.isNotEmpty()) { append("\n## Tasks running (spawn_task)\n"); tasks.forEach { append("- ${it.id}: ${Tasks.line(it)}\n") } }
     }
 
     override fun decisions(): String = buildString {
@@ -293,7 +430,12 @@ class MindHost(private val app: Context, private val core: BrainCore) : MindSink
 
     override fun cards(): List<Map<String, Any?>> {
         val now = System.currentTimeMillis()
-        return core.db.cards(now).map { mapOf("title" to it.title, "body" to it.body) } + core.store.cards(now).map { mapOf("title" to it.title, "body" to it.body, "kind" to it.source.lowercase()) }
+        return core.db.cards(now).map { mapOf("title" to it.title, "body" to it.body) } + core.store.cards(now).map { c ->
+            // One-tap agency: the buttons' labels and an opaque ref, never the notification or its intents.
+            val actions = dev.phonerecall.brain.LiveActions.forCard(c.key).map { it.label }
+            mapOf("title" to c.title, "body" to c.body, "kind" to c.source.lowercase()) +
+                if (actions.isEmpty()) emptyMap() else mapOf("actions" to actions, "ref" to dev.phonerecall.brain.LiveActions.ref(c.key))
+        }
     }
 
     override fun peopleLabels(): List<Map<String, Any?>> = core.store.people().filter { !it.calypso }.groupBy { it.label to it.tier }.map { (k, v) -> mapOf("label" to k.first, "tier" to k.second.label, "count" to v.size) }
@@ -308,9 +450,9 @@ class MindHost(private val app: Context, private val core: BrainCore) : MindSink
     }
 
     override fun reportJob(input: Map<String, Any?>, thread: String?): String {
-        val answer = synchronized(lock) { mind.reportJob(input, thread) }
+        val answer = lock.withLock { mind.reportJob(input, thread) }
         // A finished job is a session end too: Oneiroi reflects on it once (off this thread, it calls Haiku).
-        if (input["status"]?.toString() == "done") synchronized(lock) { mind.jobs().firstOrNull { it.id == input["job_id"]?.toString() } }?.let { job ->
+        if (input["status"]?.toString() == "done") lock.withLock { mind.jobs().firstOrNull { it.id == input["job_id"]?.toString() } }?.let { job ->
             Thread({ runCatching { dev.phonerecall.oneiroi.Oneiroi.get(app).reflectJob(job) }.onFailure { dev.phonerecall.clio.Clio.error("mind", it) } }, "zeus-oneiroi-reflect").start()
         }
         return answer
@@ -322,13 +464,20 @@ class MindHost(private val app: Context, private val core: BrainCore) : MindSink
 
     override fun proposeFactChanges(input: Map<String, Any?>): String = dev.phonerecall.oneiroi.Oneiroi.get(app).applyDream(input)
 
+    /** Every Zeus area but Calypso, read on the phone; each read is logged to Clio by area. */
+    override fun zeusReaders(): Map<String, (ZeusRead.Ask) -> Any?> = ZeusAreas.phone(app, core).mapValues { (area, read) ->
+        { a: ZeusRead.Ask -> read(a).also { dev.phonerecall.clio.Clio.info("mind", "read_zeus", area) } }
+    }
+
+    override fun zeusSealed(): Set<String> = ZeusAreas.sealed(app, core)
+
     override fun dreamSpent(cents: Long) = dev.phonerecall.oneiroi.Oneiroi.get(app).dreamSpent(cents * 10_000L)
 
     override fun handOff(title: String, brief: String, protege: String?): String {
         if (!core.vault.has()) return "Add the Anthropic key in Calypso first."
         if (runCatching { core.spend.check() }.isFailure) return "This month's cap is reached, so the circle can't start a job. Tell him to raise it in Themis."
         val p = protege?.let { name -> Protege.entries.firstOrNull { it.display.equals(name, true) } }
-        val job = synchronized(lock) { mind.startJob(title, brief, p?.display) }
+        val job = lock.withLock { mind.startJob(title, brief, p?.display) }
         MindWork.flushSoon(app, 0)
         return "Started long job ${job.id} for Athena's circle${p?.let { " (${it.display})" } ?: ""}. It comes back as a card in Praxis under Long jobs. Tell him in one line; do not say it is done."
     }
@@ -359,6 +508,20 @@ object MindWork {
         WorkManager.getInstance(c).enqueueUniqueWork("zeus-alexandria-now", ExistingWorkPolicy.KEEP, OneTimeWorkRequestBuilder<IndexNowWorker>().build())
     }
 
+    /**
+     * While a spawned task runs: a look every 90 seconds (its tool calls answered, its end noticed), until none is
+     * left. KEEP from the outside; the worker chains the next look after itself.
+     */
+    fun tasksSoon(c: Context, policy: ExistingWorkPolicy = ExistingWorkPolicy.KEEP) {
+        WorkManager.getInstance(c).enqueueUniqueWork(
+            "zeus-mind-tasks", policy,
+            OneTimeWorkRequestBuilder<TaskTickWorker>()
+                .setInitialDelay(90, TimeUnit.SECONDS)
+                .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+                .build(),
+        )
+    }
+
     /** A batch flush after `delayMs` (0 for urgent ones: REPLACE so an urgent note does not wait behind a delayed one). */
     fun flushSoon(c: Context, delayMs: Long) {
         WorkManager.getInstance(c).enqueueUniqueWork(
@@ -384,6 +547,9 @@ class MindSyncWorker(context: Context, params: WorkerParameters) : CoroutineWork
         // Clio's device area rides this wake-up: the battery reading, and yesterday's screen time once a day.
         runCatching { dev.phonerecall.clio.DeviceWatch.tick(applicationContext) }.onFailure { dev.phonerecall.clio.Clio.error("device", it) }
         host.index(if (charging(applicationContext) || Nano.foreground()) 200 else 0)
+        // Assessments Athena asked Prometheus for ride this wake-up, before the sync so a result's note goes with this batch.
+        // (Prometheus schedules nothing of its own; its page checks them too.)
+        if (core.vault.has()) runCatching { dev.phonerecall.prometheus.PrometheusCore.get(applicationContext).pollAssessments() }.onFailure { dev.phonerecall.clio.Clio.error("prometheus", it) }
         if (core.vault.has()) {
             dev.phonerecall.clio.Clio.clean = host.mind.sanitizer()
             val before = host.spentCents()
@@ -411,6 +577,21 @@ class IndexNowWorker(context: Context, params: WorkerParameters) : CoroutineWork
     }
 }
 
+/** One look at the spawned tasks (Tasks.kt). Logged as a wakeup like the others. */
+class TaskTickWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
+    override suspend fun doWork(): Result = dev.phonerecall.clio.Clio.work(this) { runWork() }
+    private suspend fun runWork(): Result {
+        val started = System.currentTimeMillis()
+        val host = BrainCore.get(applicationContext).mindHost
+        val n = runCatching { host.locked { tickTasks() } }.onFailure { dev.phonerecall.clio.Clio.error("mind", it) }.getOrDefault(0)
+        val open = host.mind.openTasks().size
+        WakeLog.add(host.kv, Wakeup(started, "tasks ($open open, $n calls answered)", System.currentTimeMillis() - started, n))
+        if (open > 0) MindWork.tasksSoon(applicationContext, ExistingWorkPolicy.APPEND_OR_REPLACE)
+        BrainCore.get(applicationContext).changed()
+        return Result.success()
+    }
+}
+
 class MindFlushWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result = dev.phonerecall.clio.Clio.work(this) { runWork() }
     private suspend fun runWork(): Result {
@@ -418,6 +599,8 @@ class MindFlushWorker(context: Context, params: WorkerParameters) : CoroutineWor
         val core = BrainCore.get(applicationContext)
         val host = core.mindHost
         val before = host.spentCents()
+        // His held chat goes first, then the batch.
+        host.deliverNow()
         val sent = runCatching { host.locked { flush() } }.getOrElse { e ->
             if (e !is SpendCapReached) { core.audit.log("Athena", "batch failed", dev.phonerecall.brain.AthenaEngine.plainError(e)); dev.phonerecall.clio.Clio.error("mind", e) }
             false
@@ -427,4 +610,15 @@ class MindFlushWorker(context: Context, params: WorkerParameters) : CoroutineWor
         core.changed()
         return Result.success()
     }
+}
+
+/** The memory flush's handoffs, sealed with a Keystore key in the mind's prefs (Mnemosyne opens "zeus.aegis.*" keys). */
+class SealedHandoffs(private val kv: Kv, private val sealer: dev.phonerecall.brain.Sealer = dev.phonerecall.brain.KeystoreSealer("zeus.aegis.mind")) : HandoffStore {
+    override fun save(day: String, text: String) {
+        kv.put("handoff.$day", sealer.seal(text))
+        kv.put("handoff.latest", day)
+        // A week of them is plenty; older ones go.
+        kv.get("handoff.days")?.split(',').orEmpty().plus(day).distinct().let { all -> all.dropLast(7).forEach { kv.put("handoff.$it", null) }; kv.put("handoff.days", all.takeLast(7).joinToString(",")) }
+    }
+    override fun latest(): String? = kv.get("handoff.latest")?.let { kv.get("handoff.$it") }?.let { sealer.open(it) }
 }

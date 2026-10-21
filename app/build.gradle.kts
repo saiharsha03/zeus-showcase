@@ -33,10 +33,28 @@ android {
         applicationId = "dev.phonerecall"
         minSdk = 31
         targetSdk = 35
-        versionCode = 200
-        versionName = "2.0.0"
+        versionCode = 210
+        versionName = "2.1.0"
         // The Fold is arm64. MediaPipe and LiteRT-LM ship large native libraries for four ABIs; one is enough.
         ndk { abiFilters += "arm64-v8a" }
+    }
+
+    buildTypes {
+        // The phone's daily build: not debuggable, so ART compiles it (a debuggable build runs much of Compose in the
+        // interpreter, several times slower). Same debug key, so it installs over a debug build and keeps his data.
+        // No R8: Jackson, the Anthropic SDK and MediaPipe use reflection and would need keep rules tested on the phone.
+        create("fast") {
+            initWith(getByName("debug"))
+            isDebuggable = false
+            isJniDebuggable = false
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += "debug"
+        }
+    }
+    // The debug hooks (watchdog, DUMP-only receiver, Clio export over adb) ride along in the fast build too.
+    sourceSets.getByName("fast") {
+        java.srcDir("src/debug/java")
+        manifest.srcFile("src/debug/AndroidManifest.xml")
     }
 
     buildFeatures { compose = true; buildConfig = true }

@@ -117,7 +117,7 @@ object MetronBudget {
         val proteges = Protege.entries.map { p -> p to (circle[p.agentName] ?: 0L) * 10_000L }
         val athenaMind = (s.mindMicros - metisMind - proteges.sumOf { it.second }).coerceAtLeast(0)
         val lines = listOf(
-            BudgetLine("Delphi", (s.messagesMicros - s.advisorMicros).coerceAtLeast(0), "chat and the phone's quick calls"),
+            BudgetLine("Quick calls", (s.messagesMicros - s.advisorMicros).coerceAtLeast(0), "the phone's own calls: triage, arrivals, reflect"),
             BudgetLine("Athena's mind", athenaMind, "background sessions"),
         ) + proteges.map { (p, m) -> BudgetLine(p.display, m, p.role.lowercase()) } + BudgetLine(Metis.DISPLAY, metisTotal, "advisor")
         val l = live?.on(now.toLocalDate())

@@ -445,7 +445,14 @@ fun MonetaScreen(gutter: Dp, wide: Boolean) {
     GateLifecycle(gate)
     val unlock = { gate.unlock(bio, "Open ${Place.MONEY.myth}", "Your money is behind your fingerprint") { core.load(); core.syncIris() } }
     LaunchedEffect(Unit) { unlock() }
-    val ui = if (gate.unlocked && s.loaded) monetaUi(s, core.subscriptions(s), month, System.currentTimeMillis(), ZoneId.systemDefault(), MonetaHooks.visits) else null
+    // The charts, recurring charges and the visit next to each charge run over the whole ledger (and Odyssey's
+    // store), so they are worked out off the main thread when the ledger or the month changes, not on every frame.
+    val built by androidx.compose.runtime.produceState<MonetaUi?>(null, s, month, gate.unlocked) {
+        if (gate.unlocked && s.loaded) value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+            monetaUi(s, core.subscriptions(s), month, System.currentTimeMillis(), ZoneId.systemDefault(), MonetaHooks.visits)
+        }
+    }
+    val ui = built.takeIf { gate.unlocked && s.loaded }
     MonetaContent(
         gutter, wide, gate.unlocked, gate.failure, ui, pending,
         MonetaCalls(

@@ -319,7 +319,7 @@ object Argo {
 
     // ---- Delphi (tier 0 read, tier 1 own-space write) ----
 
-    fun note(c: Context, place: String, whenText: String?, details: String?, who: String = "Delphi", budgetCents: Long? = null): Trip {
+    fun note(c: Context, place: String, whenText: String?, details: String?, who: String = "Athena", budgetCents: Long? = null): Trip {
         val zone = ZoneId.systemDefault()
         var touched: Trip? = null
         val now = System.currentTimeMillis()

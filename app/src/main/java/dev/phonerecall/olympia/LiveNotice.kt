@@ -101,7 +101,8 @@ object LiveNotice {
     )
 
     /** `sound` is true only for an update that carries a new key moment. */
-    fun build(c: Context, t: NoticeText, sound: Boolean, countdownTo: Long? = null): Notification {
+    /** `watch` is the Watch button ([WatchApps.pending]): straight into the app carrying the match. */
+    fun build(c: Context, t: NoticeText, sound: Boolean, countdownTo: Long? = null, watch: PendingIntent? = null): Notification {
         channels(c)
         val b = NotificationCompat.Builder(c, CHANNEL)
             .setSmallIcon(R.drawable.ic_owl)
@@ -119,6 +120,7 @@ object LiveNotice {
             })
         t.big?.let { b.setStyle(NotificationCompat.BigTextStyle().bigText(listOf(t.text, it).filter { s -> s.isNotEmpty() }.joinToString("\n"))) }
         t.progress?.let { (done, of) -> if (of > 0) b.setProgress(of, done.coerceIn(0, of), false) }
+        watch?.let { b.addAction(0, "Watch", it) }
         if (countdownTo != null) b.setWhen(countdownTo).setShowWhen(true).setUsesChronometer(true).setChronometerCountDown(true)
         return b.build()
     }

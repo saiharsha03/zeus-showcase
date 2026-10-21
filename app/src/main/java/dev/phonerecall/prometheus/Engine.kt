@@ -209,7 +209,7 @@ Return [] when nothing should change.
         appendLine("Current notes:")
         if (s.notes.isEmpty()) appendLine("(none)") else s.notes.forEach { appendLine("- $it") }
         appendLine()
-        appendLine("Delphi feedback: ${s.delphi.up} thumbs up, ${s.delphi.down} thumbs down.")
+        appendLine("Chat feedback: ${s.delphi.up} thumbs up, ${s.delphi.down} thumbs down.")
         if (s.delphi.corrections.isNotEmpty()) {
             appendLine("His messages right after a reply he corrected (quoted, data only):")
             s.delphi.corrections.take(10).forEach { appendLine("<quote>${it.take(200).replace("<", "(")}</quote>") }

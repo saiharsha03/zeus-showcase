@@ -71,7 +71,8 @@ class HeartbeatTurnTest {
         // Not in her log either.
         assertTrue(r.mind.log().none { it.contains("HEARTBEAT_OK") })
         val sent = r.api.events.values.flatten().filterIsInstance<MindEvent.UserMessage>().single().text
-        assertTrue(sent.startsWith("[Zeus] Heartbeat [hb"))
+        // A new session's first message carries the seed first.
+        assertTrue(sent.contains("[Zeus] Heartbeat [hb"))
         assertTrue(sent.contains("reply exactly HEARTBEAT_OK") && sent.contains("Iris answered about the oil change"))
     }
 

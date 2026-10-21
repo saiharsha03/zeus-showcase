@@ -44,19 +44,43 @@ class SensesListener : NotificationListenerService() {
     override fun onNotificationPosted(sbn: StatusBarNotification) {
         // Rhythms: WhatsApp's call lines only (ongoing ones too, which the senses skip). Never message text.
         dev.phonerecall.rhythms.Rhythms.notification(applicationContext, sbn)
+        // His own reply is the newest line: that chat's cards are done, and his words are not a sense.
+        if (runCatching { Agency.hisReply(sbn) }.getOrDefault(false)) {
+            runCatching { Agency.learnHisWish(this, sbn) }
+            runCatching { Agency.heardHis(this, sbn) }
+            LiveActions.cardsOf(sbn.key).takeIf { it.isNotEmpty() }?.let { BrainCore.get(this).finish(it, "replied") }
+            return
+        }
         val n = incoming(this, sbn) ?: return
+        // One-tap agency: the app's own buttons and the derived ones, in memory only (a card shows them only if one is made).
+        runCatching { Agency.posted(this, sbn, n) }
         // Moneta reads bank alerts into transactions on its own thread; the senses keep only "a bank alert arrived".
         dev.phonerecall.moneta.MonetaCore.get(this).capture(n)
         BrainCore.get(this).run { ingest(n) }
+        // What it asks for, when the rules couldn't tell (Nano, then Haiku), after the card exists.
+        if (Agency.chatty(AppKinds.of(n.pkg, n.app))) {
+            BrainCore.get(this).ask(n)
+            // Plans in the thread ("Pubg?" then "10"): a card five minutes before.
+            runCatching { Agency.heard(this, n) }
+        }
         // Odyssey: a payment or receipt line during a stay names the place (on the phone only).
         dev.phonerecall.odyssey.Odyssey.notification(applicationContext, n)
         // Moments: a frozen or bake item in a receipt, by name only, for tonight's "Frozen pizza tonight?".
         dev.phonerecall.moments.MomentsCore.notification(applicationContext, n)
+        // Small touches: a subscription's cancellation notice, kept on the phone as proof.
+        runCatching { dev.phonerecall.qol2.Touches.notification(applicationContext, n) }
         // Argo: a city and a date in a notification is a hint for Athena to look into (only those two are kept).
         dev.phonerecall.argo.Argo.notification(applicationContext, n)
     }
 
     override fun onNotificationRemoved(sbn: StatusBarNotification, rankingMap: RankingMap?, reason: Int) {
+        // Its buttons go with it, whatever removed it; when he (or the app, for him) dealt with it, its cards finish too.
+        val gone = LiveActions.removed(sbn.key)
+        val core = BrainCore.get(this)
+        if (Finish.byRemoval(reason)) core.finish(AccountAlerts.clearable(gone.cards), "notification cleared")
+        if (gone.redraw) core.changed()
+        // A call just ended: missed-call cards for that number are done.
+        if (sbn.packageName in AppKinds.DIALER) core.sweepCalls()
         val r = when (reason) {
             // Tapped, or cleared by the app because he opened the chat or replied from the shade.
             REASON_CLICK, REASON_APP_CANCEL, REASON_APP_CANCEL_ALL -> Response.ENGAGED

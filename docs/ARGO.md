@@ -10,7 +10,7 @@ Plain name "Trips"; mythic name Argo, "The ship that carries you". Code: `app/..
 - **Trips are rebuilt from evidence on every change**, in layers, so a wrong trip is mended by better evidence instead
   of staying stuck:
   1. **Evidence** (`Evidence.kt`): legs, stays, dated spans and plans from every calendar of his (one feed per calendar),
-     Iris's `trip.info`, her weekly sweep lines, and his own words (Delphi's `note_trip`, his answer to a question card,
+     Iris's `trip.info`, her weekly sweep lines, and his own words (the chat's `note_trip`, his answer to a question card,
      Athena's finding), each with its source and confidence. Calendars of kind subscribed, sports, holiday, birthdays
      and followed are never evidence (a sports calendar is a TV schedule, not a trip). Calendar flights are read in both
      shapes: "Flight to Chicago (UA 1234)" at "Denver DEN", and "Flight UA 1234: DEN to ORD". Notifications and
@@ -86,7 +86,7 @@ Athena doesn't wait to be told. A weak hint starts an investigation:
 
 Then:
 1. With the mind set up, Athena's circle (Perseus, inside the spend caps) gets a long job with the hint. Its tools:
-   `ask_worker` (below), `search_memory` (Alexandria, incl. past Delphi chats), `read_calendar`, `read_trips`, and
+   `ask_worker` (below), `search_memory` (Alexandria, incl. past chats), `read_calendar`, `read_trips`, and
    `record_trip_finding(investigation_id, place, when, confidence, evidence)`. If it hasn't concluded in six hours,
    or there is no mind, the phone runs the same loop itself: ask Iris, search Alexandria, conclude.
 2. **Confidence** (`ConfidenceRule`): high when Iris confirms with dates or a booking (or two sources agree); medium with

@@ -87,6 +87,39 @@ online, on, level). It has no ids and no tokens. If Zeus wasn't running, the fir
 - Forbidden kinds are refused at proposal time, again at confirm (revalidation), in `HestiaCore.tap`/`control`, and in the fake.
 - Proposals expire after 10 minutes. Undo restores the previous on/off state, brightness or white.
 
+## Home routines (`Routines.kt`, `RoutineSpec.kt`, `RoutinesAndroid.kt`)
+
+Chat-first ("describe it to Athena and she sets it up"). One list of WHEN / IF / THEN routines,
+whether they came from a preset, his words or one of Athena's suggestions.
+
+- **Making one.** He says it in any words or Hinglish. Athena calls `read_routines`, then `propose_routine`; the phone
+  checks it (`RoutineSpec.check`) and parks ONE `SET_ROUTINE` card with the routine in one sentence ("When you leave
+  home: turn off the Bedroom lights and every plug and switch, except Computer."). Live after his Confirm; Undo puts the
+  old one back. Changing ("make that only after 10 PM") and deleting go the same way, by id.
+- **WHEN**: leave or arrive (home, work, or a named place), sunset or sunrise (offset), a time, looks asleep, alarm
+  dismissed, car connects or disconnects. Not built yet: charging, unplugged, calendar event start or end.
+- **IF**: home or away, dark or light, weekdays, weekend or days, after or before a time, a device on or off.
+- **THEN**: a lights block (rooms, named devices, every plug and switch for off, except, his learned usual set), one
+  device (on, off, brightness, white, color), music, an alarm, a card. A scene is a few device steps.
+- **Never**: locks and every forbidden kind (refused by the spec, by the confirm's revalidation and by the Fates
+  validator and `HestiaCore` underneath); messages, calls and payments. A device marked **Never automate** (his
+  computer; a device named like computer/PC/desktop is pre-tagged once) only when he says so for that routine.
+- **Can't yet**: an unknown or unbuilt WHEN, IF, THEN or device kind comes back telling Athena to call
+  `ask_prometheus` (kind assess); Prometheus checks the code and, if feasible, parks a Build card (promclio).
+- **Running**: through `Fates.own` as his standing commands (validated, audited, Undo), one notification with Undo per
+  run, Clio logs runs and skips with reasons, run history (last 10) in Hestia. Quiet rules: no arrival run when already
+  there (arrived in the last 8 h) or back within 5 minutes; asleep at home, a leave or arrival is a GPS jump; nothing
+  that turns lights on or plays music runs while he looks asleep (except on his alarm); a clock routine runs once a day.
+- **Presets**: leaving home (Bedroom lights, every plug and switch off), home after dark (usual arrival lights, until
+  learned the living room), getting dark while home, looks asleep (past Hypnos's bedtime or 11:30 PM, never before
+  10 PM, screen off 20 min, nothing playing: every light off).
+- **Learning**: his tile taps (`HestiaCore.tapped`) and the moments (`leave:home`, `arrive:home`, `sun:set`, `bedtime`)
+  feed the learned-shortcuts evidence; Athena can offer a routine from it, and his Yes makes one (`hr-` id). The
+  routines' own steps stay out of the evidence (`ShortcutsCore.quietly`).
+- **Screens**: Hestia lists them (on/off, sentence, last run; open one for its runs, Undo, Edit by chat, Delete) plus the
+  Never automate picks; Horologion has a "Home routines" row each (on/off). The clock is one inexact alarm
+  (`RoutineReceiver`): the next sun or set time, tonight's bedtime, then every 15 minutes until 5 AM.
+
 ## What the owner has to do
 
 1. In the Google Home app: Devices, Add, Works with Google Home, AiDot. Sign in with the AiDot account and put the lights in rooms.
@@ -94,3 +127,4 @@ online, on, level). It has no ids and no tokens. If Zeus wasn't running, the fir
 3. Home Developer Console: no step needed for personal test use. Register only if the consent screen refuses.
 4. On the phone: update Google Play services to 26.36.25 or later. Install the debug build, open Hestia, tap Connect Google Home,
    and pick the home and devices to share.
+5. Routines: check which plug is the computer under Hestia, Routines, Never automate (a device named like "computer" or "PC" is pre-tagged).

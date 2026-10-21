@@ -16,6 +16,15 @@ class SanitizerTest {
         assertEquals("friend's birthday is today", s.line("Alex Kumar's birthday is today"))
     }
 
+    @Test fun aWholePhoneBookIsOnePassPerLineWithAnyCaseAndLongestNameFirst() {
+        val book = (1..1500).associate { "Person$it" to "contact" } + mapOf("amma" to "family (mother)", "Amma Kumar" to "aunt", "Sam" to "$1 friend")
+        val big = Sanitizer(book, setOf("Riley"))
+        val started = System.nanoTime()
+        repeat(500) { assertEquals("contact and family (mother) met aunt and \$1 friend", big.line("PERSON42 and AMMA met amma kumar and sam")) }
+        assertTrue("500 lines took ${(System.nanoTime() - started) / 1_000_000} ms", System.nanoTime() - started < 5_000_000_000L)
+        assertNull(big.line("dinner with RILEY"))
+    }
+
     @Test fun calypsoContentIsDroppedWhole() {
         assertNull(s.line("Riley sent you a message"))
         assertEquals("kept line", s.clean("Riley called\nkept line"))

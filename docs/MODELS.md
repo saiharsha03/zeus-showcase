@@ -4,12 +4,12 @@ Design: model choice is data, not code. `app/src/main/java/dev/phonerecall/model
 
 - **Features** (defaults): Athena's mind (Sonnet 5.5), each protégé (Odysseus, Perseus,
   Arachne on Sonnet 5.5; Atalanta, Diomedes on Haiku 5.5; Annabeth on Opus 5.5), Metis (Fable 5.1, advisor),
-  Delphi's bigger turns (Sonnet 5.5; quick turns stay Haiku), background triage (Haiku), Reflect (Haiku),
+  background triage (Haiku), Reflect (Haiku),
   Humanizer polish (Haiku; nothing calls the model step yet), Prometheus (Opus 5.5). Dream has no row: it is
   Athena's scheduled run, so it uses her model.
 - **The list.** Each mind sync reads `GET /v1/models` (api.anthropic.com, already allowed) and caches it.
 - **Pickers** (Horologion > Everything else > Models): only models that fit. Agents: anything listed and not
-  deprecated. Metis: advisor-capable in the price table. Messages API features (Delphi, triage, Reflect,
+  deprecated. Metis: advisor-capable in the price table. Messages API features (triage, Reflect,
   Humanizer): only models with a `BrainModel` price, so the spend ledger stays exact. Save and Undo each
   take his fingerprint. Agents get a new version on the next sync; the rest use it on their next call.
 - **The card.** When the list has a model that is newer (same line, later) or cheaper (same line, lower price)

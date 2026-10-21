@@ -77,6 +77,18 @@ object Espn {
         }
     }
 
+    /**
+     * Who carries it: team schedules nest `media.shortName`, scoreboards list `names` and repeat them
+     * in `geoBroadcasts`. In ESPN's order, once each.
+     */
+    private fun broadcasts(comp: JSONObject): List<String> {
+        val names = comp.optJSONArray("broadcasts").objects().flatMap { b ->
+            b.obj("media")?.str("shortName")?.let { listOf(it) }
+                ?: b.optJSONArray("names")?.let { a -> (0 until a.length()).mapNotNull { a.optString(it).takeIf(String::isNotEmpty) } }.orEmpty()
+        }
+        return (names + comp.optJSONArray("geoBroadcasts").objects().mapNotNull { it.obj("media")?.str("shortName") }).distinct()
+    }
+
     private fun event(e: JSONObject, sport: Sport, league: String?, leagueName: String?): Match? {
         val id = e.str("id") ?: return null
         val comp = e.optJSONArray("competitions").objects().firstOrNull() ?: return null
@@ -98,6 +110,7 @@ object Espn {
             clock = clock(sport, status, ph),
             detail = status?.obj("type")?.str("shortDetail").orEmpty(),
             result = status?.str("summary"),
+            broadcasts = broadcasts(comp), stage = e.obj("season")?.str("slug"),
         )
         if (sport == Sport.CRICKET) m = m.copy(clock = if (ph == Phase.LIVE) cricketClock(comp) else "")
         return m

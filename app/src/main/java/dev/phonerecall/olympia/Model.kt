@@ -103,6 +103,10 @@ data class Match(
     /** F1: ESPN's race weekend id and the Jolpica circuit, for live timing and the lap count. */
     val espnEvent: String? = null,
     val circuit: String? = null,
+    /** Who carries it in the US, as ESPN names them ("Paramount+", "CBS", "ESPN+"). Empty when ESPN lists none. */
+    val broadcasts: List<String> = emptyList(),
+    /** ESPN's season stage ("final", "post-season", "league-phase"), for big matches. */
+    val stage: String? = null,
 ) {
     val isPractice: Boolean get() = session?.startsWith("Practice") == true
     val score: String? get() = if (home?.score != null && away?.score != null) "${home.score}–${away.score}" else null

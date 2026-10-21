@@ -30,6 +30,8 @@ class HaikuModel(private val gateway: ModelGateway, private val spend: SpendGuar
                 "rambler" -> "Sorting a Parnassus capture" to setOf(FieldCat.MESSAGE_TEXT)
                 "arrival" -> "Arrival text for a store" to setOf(FieldCat.PLACE_NAMES, FieldCat.LIST_ITEMS)
                 "venus" -> "Outfit note wording" to emptySet()
+                "asks" -> "What one message asks, and reply chips" to setOf(FieldCat.MESSAGE_TEXT)
+                "plans" -> "When a chat's plan is (activity and time)" to setOf(FieldCat.MESSAGE_TEXT)
                 else -> "Quick call: $feature" to setOf(FieldCat.MESSAGE_TEXT)
             }
             return Outgoing(purpose, Outbound.fieldsOf(user, declared))

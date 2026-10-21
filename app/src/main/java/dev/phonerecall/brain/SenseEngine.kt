@@ -42,8 +42,22 @@ interface SenseEffects {
     fun derived(key: String, line: String, high: Boolean) {}
     /** Phase 2c: a Parnassus item for Athena's circle starts a long job (tier 1). Null when the circle isn't set up. */
     fun longJob(title: String, brief: String): String? = null
+    /** Zeus's own sign-ins and consents of the last 7 days, to explain security alerts they cause. */
+    fun consents(): List<OwnConsent> = emptyList()
+    /** Apps he connects himself (Themis's Known apps). */
+    fun knownApps(): List<String> = emptyList()
     /** Metron: why [worker] ("iris", "atlas") shouldn't take a job now (above 90% of a plan window), or null. */
     fun workerHold(worker: String): String? = null
+    /** One-tap agency: card [card] shows notification [note]'s buttons (held in memory by brain/Agency.kt, never stored). */
+    fun showsActions(card: String, note: String) {}
+    /** A one-time code was dropped unstored: the phone may offer "Copy code" for it, in memory only, while it lasts. */
+    fun code(n: Incoming) {}
+    /** A game invite while he is already in that game: no card. */
+    fun inGame(text: String): Boolean = false
+    /** A group is wishing [name]: the phone words his wish for the card on notification [note]. */
+    fun wish(thread: String, name: String, note: String) {}
+    /** A relative wished [name] in [thread]: a wording to learn. */
+    fun wishLearned(thread: String, text: String, name: String) {}
 }
 
 /**
@@ -77,7 +91,11 @@ class SenseEngine(
         val now = now()
         if (now - lastPurge > 60_000L) { store.purge(now); lastPurge = now }
         when (val intake = Exclusions.check(n, store.calypsoApps(), store.calypsoPeople())) {
-            is Intake.Drop -> { store.setMeta("dropped.${intake.reason}", "${(store.meta("dropped.${intake.reason}")?.toLongOrNull() ?: 0) + 1}"); return }
+            is Intake.Drop -> {
+                store.setMeta("dropped.${intake.reason}", "${(store.meta("dropped.${intake.reason}")?.toLongOrNull() ?: 0) + 1}")
+                if (intake.reason == "code") effects.code(n)
+                return
+            }
             is Intake.BankFact -> { bank(n, intake, now); return }
             Intake.Keep -> Unit
         }
@@ -127,6 +145,7 @@ class SenseEngine(
         val summary = "Bank alert from ${b.app}"
         store.insertNote(NoteRow(at = n.at, notifKey = n.key, pkg = n.pkg, app = n.app, kind = NoteKind.BANK, person = null, thread = null, raw = null, summary = summary, importance = Importance.MEDIUM))
         store.upsertCard(SenseCard("bank:${n.pkg}", "Bank alert", "${b.app}, at ${time.format(zoned(n.at))}", "BANK", now, now + 12 * 3_600_000L))
+        effects.showsActions("bank:${n.pkg}", n.key)
         effects.changed()
     }
 
@@ -159,30 +178,44 @@ class SenseEngine(
         val tier = person?.tier
         val endOfTomorrow = startOfDay(now) + 2 * 86_400_000L
         var nudge: Pair<String, String>? = null
+        // A friend asking for something he can do in one tap ("Pubg?"): no card at all while he's already in that game.
+        val asking = (kind == AppKind.CHAT || kind == AppKind.SMS || kind == AppKind.WORK) && Asks.detect(n.text) != null
+        if (asking && effects.inGame(n.text)) return
+        // The card this notification lands on wears its buttons (in memory only).
+        fun card(c: SenseCard) { store.upsertCard(c); effects.showsActions(c.key, n.key) }
         when {
+            n.pkg == Splitwise.PKG -> {
+                // Who owes whom, with Open Splitwise and Settle up (both only open the app).
+                val line = Splitwise.read(n.title + " " + n.text)
+                card(SenseCard("splitwise", Splitwise.title(line), n.text.replace(Regex("\\s+"), " ").take(90), "ATHENA", now, now + 24 * 3_600_000L))
+            }
             who?.missedCall == true && person != null -> {
                 val count = store.countNotes(NoteKind.CALL, person.key, startOfDay(now))
                 val title = SenseWords.calls(name, count)
-                store.upsertCard(SenseCard("call:${person.key}", title, "Last call ${time.format(zoned(n.at))}", "ATHENA", now, endOfTomorrow))
+                card(SenseCard("call:${person.key}", title, "Last call ${time.format(zoned(n.at))}", "ATHENA", now, endOfTomorrow))
                 nudge = title to "Missed call"
             }
-            v.kind == NoteKind.SECURITY -> {
-                store.upsertCard(SenseCard("security:${n.pkg}", "Security alert", "${n.app}, at ${time.format(zoned(n.at))}", "SECURITY", now, now + 24 * 3_600_000L))
-                effects.derived("security:${n.pkg}", "Security alert from ${n.app} (details withheld).", high = true)
-            }
+            v.kind == NoteKind.SECURITY -> security(n, now, ::card)
             v.kind == NoteKind.DELIVERY ->
-                store.upsertCard(SenseCard("delivery:${n.pkg}", "Delivery update", "${n.app}: ${n.text.take(90)}", "ATHENA", now, now + 12 * 3_600_000L))
+                card(SenseCard("delivery:${n.pkg}", "Delivery update", "${n.app}: ${n.text.take(90)}", "ATHENA", now, now + 12 * 3_600_000L))
             v.kind == NoteKind.REQUEST && person != null && v.importance <= Importance.MEDIUM -> {
                 request(n, name, person, cues)
                 nudge = name to "Asked you something"
             }
             v.kind == NoteKind.MESSAGE && person != null && v.importance == Importance.HIGH -> {
                 val count = store.countNotes(NoteKind.MESSAGE, person.key, startOfDay(now))
-                store.upsertCard(SenseCard("msg:${person.key}", SenseWords.messages(name, count), n.text.replace(Regex("\\s+"), " ").take(90), "ATHENA", now, now + 12 * 3_600_000L))
+                card(SenseCard("msg:${person.key}", SenseWords.messages(name, count), n.text.replace(Regex("\\s+"), " ").take(90), "ATHENA", now, now + 12 * 3_600_000L))
                 nudge = name to "New message"
             }
+            // A friend asking for something he can do in one tap ("Pubg?", "pics bhej") gets its card, unless he's already in that game.
+            (kind == AppKind.CHAT || kind == AppKind.SMS || kind == AppKind.WORK) && person != null && v.importance != Importance.NOISE &&
+                asking -> {
+                val count = store.countNotes(NoteKind.MESSAGE, person.key, startOfDay(now))
+                card(SenseCard("msg:${person.key}", SenseWords.messages(name, count), n.text.replace(Regex("\\s+"), " ").take(90), "ATHENA", now, now + 6 * 3_600_000L))
+            }
         }
-        if (nudge != null && QuietHours.breaksThrough(tier, v.importance, zoned(now))) effects.nudge("sense:${person?.key ?: noteId}", nudge.first, nudge.second)
+        // A family group at night waits for the morning digest (qol/FamilyNight): Zeus's own buzz only.
+        if (nudge != null && QuietHours.breaksThrough(tier, v.importance, zoned(now)) && !dev.phonerecall.qol.FamilyNight.hold(n.isGroup, n.conversation, zoned(now))) effects.nudge("sense:${person?.key ?: noteId}", nudge.first, nudge.second)
         // The brain hears about it as a derived line: the person's label and the kind, never the name or the words.
         if (nudge != null || v.importance <= Importance.MEDIUM) {
             val who = person?.label ?: n.app
@@ -192,6 +225,23 @@ class SenseEngine(
             }
             effects.derived("note:${person?.key ?: n.pkg}", "$what (${v.importance.name.lowercase()}, tier ${tier?.word ?: "unknown"}).", high = v.importance == Importance.HIGH && tier == Tier.REPLY_NOW)
         }
+    }
+
+    /**
+     * A security alert in plain words. One Zeus caused (it names the app Zeus just connected) is a quiet card for a day;
+     * anything else is a must-see card for a week, and nothing here ever clears it.
+     */
+    private fun security(n: Incoming, now: Long, card: (SenseCard) -> Unit) {
+        val alert = AccountAlerts.classify(n.title, n.text)
+        if (alert == null) {
+            card(SenseCard("security:${n.pkg}", "Security alert", "${n.app}, at ${time.format(zoned(n.at))}", "SECURITY", now, now + 24 * 3_600_000L))
+            effects.derived("security:${n.pkg}", "Security alert from ${n.app} (details withheld).", high = true)
+            return
+        }
+        val c = AccountAlerts.card(alert, n.at, effects.consents(), zone(), effects.knownApps())
+        if (c.expected) card(SenseCard(c.key, c.title, c.body, AccountAlerts.QUIET_SOURCE, now, now + AccountAlerts.QUIET_MS))
+        else card(SenseCard(c.key, c.title, c.body, "SECURITY", now, now + AccountAlerts.LOUD_MS))
+        effects.derived(c.key, c.line, high = !c.expected)
     }
 
     /** "Taylor: can you send the report by EOD" becomes a proposal "Add task: Send the report, due 5:00 PM". */
@@ -253,6 +303,16 @@ class SenseEngine(
         val nameKey = People.keyOf(name)
         if (BirthdayCatcher.blocked(store.negatives(), thread, nameKey, wish.phrase)) return
         effects.birthdaySeen(name, thread)
+        // His family's wordings in this group teach how he wishes there.
+        val from = n.sender?.let { store.person(People.keyOf(Senders.clean(it))) }
+        if (from?.relation?.label == "family") effects.wishLearned(thread, n.text, name)
+        // The wish card: his wish to this group in one tap. Made once a day (so a swipe holds), always on the newest notification.
+        val wishKey = "wish:$thread"
+        if (store.card(wishKey) == null) {
+            store.upsertCard(SenseCard(wishKey, "Wish $name happy birthday", n.conversation?.let { "In $it" } ?: n.app, "ATHENA", now, startOfDay(now) + 86_400_000L))
+        }
+        effects.showsActions(wishKey, n.key)
+        effects.wish(thread, name, n.key)
         val today = zoned(now).toLocalDate()
         if (store.birthdayStatus(nameKey, today.year) != null) return
         if (effects.knownBirthday(name, today.monthValue, today.dayOfMonth)) { store.setBirthdayStatus(nameKey, today.year, "known"); return }
@@ -306,6 +366,7 @@ class SenseEngine(
             decided++
             if (v.importance <= Importance.MEDIUM) store.note(id)?.let { note ->
                 store.upsertCard(SenseCard("note:$id", v.card?.replaceFirstChar { it.uppercase() } ?: "Worth a look", note.summary.take(120), "ATHENA", now, now + 12 * 3_600_000L))
+                effects.showsActions("note:$id", note.notifKey)
             }
         }
         store.markSent(pending.map { it.first })

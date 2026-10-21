@@ -97,7 +97,7 @@ class GoogleBirthdayTest {
         assertEquals("Sam", Validate.birthdayOf("Sam's birthday"))
         assertEquals("James", Validate.birthdayOf("James' birthday!"))
         assertEquals("Alex Kumar", Validate.birthdayOf("Alex Kumar bday"))
-        assertEquals("Sita", Validate.birthdayOf("Birthday: Sita"))
+        assertEquals("Maya", Validate.birthdayOf("Birthday: Maya"))
         assertNull(Validate.birthdayOf("Happy birthday Alex"))
         assertNull(Validate.birthdayOf("Plan birthday"))
         assertNull(Validate.birthdayOf("Birthday party for Alex"))

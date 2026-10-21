@@ -18,6 +18,7 @@ import dev.phonerecall.home.CardAction
 import dev.phonerecall.home.CardContent
 import dev.phonerecall.home.Fact
 import dev.phonerecall.home.Fmt
+import dev.phonerecall.home.LiveInfo
 import dev.phonerecall.ui.Tone
 import java.time.Instant
 import java.time.ZonedDateTime
@@ -40,7 +41,8 @@ object OlympiaCalendar {
                 CalItem(
                     eventId = -(m.id.hashCode().toLong() and 0x7fffffffL) - 1, calendarId = ID, title = m.title,
                     begin = m.start, end = m.start + ResultCheck.typical(m), allDay = false, category = EventCategory.SPORT,
-                    calendarName = "Olympia", place = null, notes = m.leagueName, recurring = false,
+                    calendarName = "Olympia", place = null, recurring = false,
+                    notes = listOfNotNull(m.leagueName, Broadcasters.services(m).firstOrNull()?.let { "on ${it.label}" }).joinToString(" · "),
                 )
             }
 }
@@ -51,7 +53,13 @@ data class SportsCard(val content: CardContent, val fit: Float, val updatedAt: L
 object OlympiaCards {
     private val OPEN = CardAction("Open Olympia", ActionRole.OPEN_OLYMPIA)
 
-    fun card(s: OlympiaSnapshot, now: ZonedDateTime): SportsCard? {
+    private fun watchAction(m: Match) = CardAction("Watch", ActionRole.WATCH, m.id)
+
+    /**
+     * `watch` picks the app for a match (installed only); `quiet` keeps the Now Bar chip off over a game.
+     * Before kickoff the card says where to watch and carries the chip until the live notice takes over.
+     */
+    fun card(s: OlympiaSnapshot, now: ZonedDateTime, watch: (Match) -> WatchChoice? = { null }, quiet: () -> WatchQuiet = { WatchQuiet() }): SportsCard? {
         val ms = now.toInstant().toEpochMilli()
         val matches = s.followed
         MatchDay.liveNow(matches, ms).filter { it.phase == Phase.LIVE }.maxByOrNull { it.start }?.let { m ->
@@ -62,9 +70,25 @@ object OlympiaCards {
                     title = w.title,
                     body = (if (m.sport == Sport.F1) w.text else listOfNotNull(m.clock.ifEmpty { null }, l.situation).joinToString(" · ")).ifEmpty { null },
                     facts = listOfNotNull(l.lastKey?.let { Fact("Last", it.text) }),
-                    status = "Live", tone = Tone.ACTIVE, actions = listOf(OPEN),
+                    status = "Live", tone = Tone.ACTIVE, actions = listOfNotNull(watch(m)?.let { watchAction(m) }, OPEN),
                 ),
                 fit = 30f, updatedAt = l.updatedAt,
+            )
+        }
+        matches.filter { Watch.due(it, ms) }.minByOrNull { it.start }?.let { m ->
+            val w = watch(m)
+            val line = Watch.line(m, now, w)
+            // From the lead-in the live notice (with its own Watch button) is the chip.
+            val chip = if (ms < m.start - MatchDay.LEAD_IN && quiet().promote) {
+                LiveInfo(chip = NoticeWords.before(m, now).chip, title = m.title, text = line, countdownTo = m.start, key = "watch:${m.id}", watch = m.id.takeIf { w != null })
+            } else null
+            return SportsCard(
+                CardContent(
+                    title = m.title, body = line,
+                    facts = s.live[m.id]?.lineups.orEmpty().map { Fact(it.team, it.starters.joinToString(", ")) },
+                    status = "Soon", tone = Tone.ACTIVE, actions = listOfNotNull(w?.let { watchAction(m) }, OPEN), live = chip,
+                ),
+                fit = 24f, updatedAt = s.live[m.id]?.updatedAt,
             )
         }
         matches.filter { it.phase == Phase.PRE && it.start > ms && it.start - ms <= 75 * MatchDay.MIN }.minByOrNull { it.start }?.let { m ->
@@ -81,10 +105,18 @@ object OlympiaCards {
                 )
             }
         }
-        matches.filter { it.phase == Phase.DONE && ms - (it.start + ResultCheck.typical(it)) in 0..12 * MatchDay.HOUR }.maxByOrNull { it.start }?.let { m ->
+        // A score he couldn't have seen stays off this card until he taps Show score on Kairos's (qol/Spoilers).
+        matches.filter { it.phase == Phase.DONE && ms - (it.start + ResultCheck.typical(it)) in 0..12 * MatchDay.HOUR && !dev.phonerecall.qol.Spoilers.hidden(it.id) }.maxByOrNull { it.start }?.let { m ->
             return SportsCard(
                 CardContent(title = resultLine(m, s), body = m.leagueName, status = "Final", tone = Tone.QUIET, actions = listOf(OPEN)),
                 fit = 6f, updatedAt = m.start + ResultCheck.typical(m),
+            )
+        }
+        BigMatch.tonight(s.big, now)?.let { m ->
+            val w = watch(m)
+            return SportsCard(
+                CardContent(title = m.title, body = "Big match tonight · " + Watch.line(m, now, w), status = "Tonight", tone = Tone.QUIET, actions = listOfNotNull(w?.let { watchAction(m) }, OPEN)),
+                fit = 5f, updatedAt = null,
             )
         }
         return null

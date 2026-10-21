@@ -190,6 +190,8 @@ class ToolBox(
             "kind" to c.kicker, "title" to c.content.title, "lead" to c.content.lead, "body" to c.content.body,
             "facts" to c.content.facts.associate { it.label to it.value }.takeIf { it.isNotEmpty() },
             "tasks" to c.content.tasks.map { it.title }.takeIf { it.isNotEmpty() },
+            // One-tap agency: the buttons' labels only (he taps them; Delphi can point at them).
+            "buttons" to c.content.actions.filter { it.role == dev.phonerecall.home.ActionRole.LIVE }.map { it.label }.takeIf { it.isNotEmpty() },
         ).filterValues { it != null }
     })
 

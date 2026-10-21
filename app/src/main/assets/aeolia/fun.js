@@ -9,20 +9,35 @@
  // ---------- places: Current location + Buffalo + Mumbai, each with its local time
  // Zeus: Home and Work from Themis > Places when they are named; else Buffalo and Mumbai.
  let mine=null;try{mine=JSON.parse(Weather.places?.()||'null')}catch(e){}
- const PLACES=[{id:'here',name:'Current location',short:'Here'},...(Array.isArray(mine)&&mine.length?mine:[{id:'buffalo',lat:42.8864,lon:-78.8784,name:'Buffalo',country:'US',tz:'America/New_York'},{id:'mumbai',lat:19.076,lon:72.8777,name:'Mumbai',country:'IN',tz:'Asia/Kolkata'}])];
+ const HERE={id:'here',name:'Current location',short:'Here'},KNOWN_TZ={buffalo:'America/New_York',mumbai:'Asia/Kolkata'};
+ let PLACES=[HERE];
  const tabs=document.querySelector('.location-tabs');tabs.replaceChildren();
  const fmt=(tz)=>{try{return new Date().toLocaleTimeString('en-US',{timeZone:tz||undefined,hour:'numeric',minute:'2-digit'})}catch(e){return new Date().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}};
  const isHere=()=>!!place?.here;
+ const near=(a,b)=>Math.abs(a.lat-b.lat)<.3&&Math.abs(a.lon-b.lon)<.3;
  const idOf=()=>!place?'':isHere()?'here':PLACES.find(p=>p.lat&&Math.abs(p.lat-place.lat)<.05&&Math.abs(p.lon-place.lon)<.05)?.id||'';
- for(const p of PLACES){const b=el('button',undefined,'place-tab');b.dataset.place=p.id;b.append(el('span',p.id==='here'?p.short:p.name,'place-name'),el('span','','place-time'));
-  b.onclick=()=>{if(p.id==='here'){if(Weather.locate)Weather.locate();else navigator.geolocation?.getCurrentPosition(g=>window.deviceLocation({lat:g.coords.latitude,lon:g.coords.longitude,name:'Current location'}),()=>window.locationDenied())}else choose({lat:p.lat,lon:p.lon,name:p.name,country:p.country})};tabs.append(b)}
- const hereTab=tabs.querySelector('[data-place=here]');if(prefs.get().hereDenied||Weather.hereAllowed?.()===false)hereTab.hidden=true;
+ // Saved places: Themis Home/Work take the city name of the saved favourite at the same spot (Buffalo, not "Home"),
+ // then every other saved favourite, so none are dropped.
+ function buildPlaces(){const favs=prefs.get().favorites||[],out=[HERE],add=(p,name)=>{if(!p||!isFinite(p.lat)||!isFinite(p.lon)||out.some(o=>o.lat&&near(o,p)))return;
+   const key=(name||'').toLowerCase();out.push({id:'p'+Math.round(p.lat*100)+'_'+Math.round(p.lon*100),lat:p.lat,lon:p.lon,name,country:p.country||'',tz:p.tz||KNOWN_TZ[key]})};
+  let mine=null;try{mine=JSON.parse(Weather.places?.()||'null')}catch(e){}
+  if(Array.isArray(mine))for(const m of mine)add(m,favs.find(f=>near(f,m))?.name||m.name);
+  for(const f of favs)add(f,f.name);
+  if(out.length===1)for(const c of [{lat:42.8864,lon:-78.8784,name:'Buffalo',country:'US'},{lat:19.076,lon:72.8777,name:'Mumbai',country:'IN'}])add(c,c.name);
+  return out}
+ function drawTabs(){const next=buildPlaces(),sig=JSON.stringify(next.map(p=>[p.id,p.name]));if(sig===drawTabs.sig)return;drawTabs.sig=sig;PLACES=next;
+  const hidden=tabs.querySelector('[data-place=here]')?.hidden;tabs.replaceChildren();
+  for(const p of PLACES){const b=el('button',undefined,'place-tab');b.dataset.place=p.id;b.append(el('span',p.id==='here'?p.short:p.name,'place-name'),el('span','','place-time'));
+   b.onclick=()=>{if(p.id==='here'){if(Weather.locate)Weather.locate();else navigator.geolocation?.getCurrentPosition(g=>window.deviceLocation({lat:g.coords.latitude,lon:g.coords.longitude,name:'Current location'}),()=>window.locationDenied())}else choose({lat:p.lat,lon:p.lon,name:p.name,country:p.country})};tabs.append(b)}
+  const h=tabs.querySelector('[data-place=here]');if(h&&(hidden||prefs.get().hereDenied||Weather.hereAllowed?.()===false))h.hidden=true}
+ drawTabs();
+ const hereTab={set hidden(v){const h=tabs.querySelector('[data-place=here]');if(h)h.hidden=v;this._h=v}};
  // Android tells us when location permission is declined: hide the tab rather than nag.
  window.locationDenied=()=>{prefs.get().hereDenied=true;prefs.save();hereTab.hidden=true};
  window.locationUnavailable=()=>{hereTab.hidden=true;if(isHere()){}};
  const baseLocate=window.deviceLocation;window.deviceLocation=p=>{prefs.get().hereDenied=false;hereTab.hidden=false;baseLocate({...p,name:'Current location',here:true})};
  const localTime=el('p','','localtime');document.querySelector('header h1').after(localTime);
- function tick(){for(const p of PLACES){const b=tabs.querySelector(`[data-place=${p.id}]`),tz=p.id==='here'?undefined:p.tz;b.querySelector('.place-time').textContent=fmt(tz)}
+ function tick(){drawTabs();for(const p of PLACES){const b=tabs.querySelector(`[data-place="${p.id}"]`);if(b)b.querySelector('.place-time').textContent=p.id==='here'||p.tz?fmt(p.id==='here'?undefined:p.tz):''}
   const id=idOf();tabs.querySelectorAll('button').forEach(b=>{if(b.dataset.place===id)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current')});
   localTime.textContent=place?fmt(data?.timezone)+' local time':''}
  setInterval(()=>{if(!document.hidden)tick()},15000);

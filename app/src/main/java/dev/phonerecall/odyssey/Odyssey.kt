@@ -39,6 +39,7 @@ import dev.phonerecall.music.DriveSense
 import java.net.HttpURLConnection
 import java.net.URL
 import java.time.Instant
+import kotlin.concurrent.thread
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZonedDateTime
@@ -61,6 +62,8 @@ object Odyssey {
 
     fun state(c: Context) = OdysseyStore.load(c)
     fun tracking(c: Context) = Visits.tracking(state(c))
+    /** Just the yes/no, for callers outside Odyssey that must not read its store. */
+    fun driving() = OdysseyStore.state.value.driving
 
     fun canFine(c: Context) = AndroidLocalState.granted(c, Manifest.permission.ACCESS_FINE_LOCATION)
     fun canBackground(c: Context) = AndroidLocalState.granted(c, Manifest.permission.ACCESS_BACKGROUND_LOCATION)
@@ -81,14 +84,19 @@ object Odyssey {
     fun transitions(c: Context, events: List<Pair<Act, Long>>) {
         for ((act, at) in events.sortedBy { it.second }) {
             val before = state(c)
-            if (!Visits.tracking(before)) return
+            if (!Visits.tracking(before)) { if (act == Act.VEHICLE_ENTER) dev.phonerecall.clio.Clio.warn("odyssey", "drive ignored", if (before.settings.paused) "tracking paused" else "Odyssey is off"); return }
             val out = Visits.activity(before, act, at)
             OdysseyStore.update(c) { out.data }
+            // A drive that starts at home is leaving home, even when the geofence exit never comes.
+            if (act == Act.VEHICLE_ENTER) before.home()?.let { h -> before.stay?.takeIf { Geo.meters(h.lat, h.lng, it.lat, it.lng) < 200 } }
+                ?.let { dev.phonerecall.hestia.HestiaRoutines.event(c, dev.phonerecall.hestia.Moment.LEAVE) }
             when (act) {
                 Act.VEHICLE_ENTER -> if (before.settings.driveReport) DriveService.start(c)
                 Act.VEHICLE_EXIT -> DriveService.stop(c)
                 else -> Unit
             }
+            // Small touches: where the car is (qol/QolCore).
+            if (act == Act.VEHICLE_ENTER || act == Act.VEHICLE_EXIT) dev.phonerecall.qol.QolCore.drive(c, act == Act.VEHICLE_ENTER)
             if (out.needFix) fixNow(c, act == Act.VEHICLE_EXIT)
             out.visit?.let { v -> visited(c, v); out.data.place(v.placeId)?.takeIf { it.kind == Kind.FUEL }?.let { p -> Garage.fuelStop(c, v.start, p.name) } }
             out.visit?.let { v -> out.data.place(v.placeId)?.name?.takeIf { it.isNotBlank() }?.let { dev.phonerecall.clio.Clio.info(dev.phonerecall.clio.DeviceLog.PLACES, dev.phonerecall.clio.DeviceLog.LEFT, it) } }
@@ -103,11 +111,14 @@ object Odyssey {
             Tasks.await(LocationServices.getFusedLocationProviderClient(c).getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, CancellationTokenSource().token), 20, TimeUnit.SECONDS)
         }.getOrNull()?.let { Fix(System.currentTimeMillis(), it.latitude, it.longitude, it.accuracy) } ?: return
         val (poi, street) = geocode(c, f.lat, f.lng)
-        val out = Visits.fix(state(c), f, poi, street, wifi(c), nearby(c, f.lat, f.lng))
+        val (snapped, at) = Pins.snap(state(c), pins(c), f)
+        val out = Visits.fix(snapped, at, poi, street, wifi(c), nearby(c, f.lat, f.lng))
         OdysseyStore.update(c) { out.data }
         out.visit?.let { v -> visited(c, v); out.data.place(v.placeId)?.name?.takeIf { it.isNotBlank() }?.let { dev.phonerecall.clio.Clio.info(dev.phonerecall.clio.DeviceLog.PLACES, dev.phonerecall.clio.DeviceLog.LEFT, it) } }
         // A stay that just opened at a place he already has a name for: Clio gets the name, never the fix.
         if (out.data.stay?.start == f.at) Visits.known(out.data, f)?.let { dev.phonerecall.clio.Clio.info(dev.phonerecall.clio.DeviceLog.PLACES, dev.phonerecall.clio.DeviceLog.ARRIVED, it.name) }
+        // A new stay: Athena hears where he is now ("At home since 2:49 PM today").
+        if (out.data.stay?.start == f.at) shareFacts(c, out.data, f.at, force = true)
         fuelPlace(c, out.data)
     }
 
@@ -153,6 +164,8 @@ object Odyssey {
         val d = state(c)
         d.place(v.placeId)?.let { p -> dev.phonerecall.clio.Clio.info("odyssey", "visit", Stops.line(v, p)) }
         shareFacts(c, d, System.currentTimeMillis(), force = true)
+        // Small touches: a "remind me when I leave" note made there (qol2/Touches).
+        runCatching { dev.phonerecall.qol2.Touches.visited(c, v) }
         BrainCore.get(c).changed()
     }
 
@@ -164,9 +177,33 @@ object Odyssey {
         return hit.copy(street = runCatching { Poi.parseStreet(get(Poi.reverseUrl(lat, lng, key))) }.getOrNull())
     }
 
+    /** His pins from Places (Themis), for [Pins]. */
+    fun pins(c: Context): List<Pin> = runCatching { dev.phonerecall.places.PlaceStore(c).all().map { Pin(it.name, it.lat, it.lng, it.radius) } }.getOrDefault(emptyList())
+
+    /** Puts an open stay inside one of his pins onto that place (run on each tick and when the screen opens). */
+    fun heal(c: Context) {
+        val d = state(c)
+        val pins = pins(c)
+        val clio = dev.phonerecall.clio.Clio.get()?.lines(d.stay?.start ?: Long.MAX_VALUE).orEmpty()
+            .filter { it.area == dev.phonerecall.clio.DeviceLog.PLACES && (it.event == dev.phonerecall.clio.DeviceLog.LEFT || it.event == dev.phonerecall.clio.DeviceLog.ARRIVED) }
+            .map { it.ts to (it.event == dev.phonerecall.clio.DeviceLog.LEFT) }
+        val healed = Pins.backfill(Pins.heal(d, pins), pins, clio)
+        if (healed != d) { OdysseyStore.update(c) { Pins.backfill(Pins.heal(it, pins), pins, clio) }; BrainCore.get(c).changed() }
+    }
+
+    /** One of his pins entered or left: noted in Odyssey (the timeline shows it), and a leave starts the drive. */
+    fun pinEvent(c: Context, pin: Pin, left: Boolean, at: Long = System.currentTimeMillis()) {
+        if (!Visits.tracking(state(c))) return
+        if (left) geofenceExit(c, at)
+        OdysseyStore.update(c) { Pins.event(it, pin, left, at) }
+        BrainCore.get(c).changed()
+    }
+
     /** Moneta asks where he was when a charge came in ("Wegmans" next to it). */
     fun hooks(c: Context) {
         val app = c.applicationContext
+        // Activity transitions can be dropped by Play services (an update, a cache clear); arming again is harmless.
+        thread(name = "odyssey-arm") { runCatching { DriveSense.arm(app) } }
         dev.phonerecall.moneta.MonetaHooks.visits = dev.phonerecall.moneta.VisitLink { at -> Stops.placeAt(OdysseyStore.load(app), at) }
     }
 
@@ -215,9 +252,24 @@ object Odyssey {
         OdysseyStore.update(c) { d -> d.copy(arrivals = (d.arrivals + Arrival(p.id, p.kind, at)).filter { at - it.at < 14 * 86_400_000L }) }
         dev.phonerecall.clio.Clio.info("odyssey", "arrived", "${p.name} ${dev.phonerecall.home.Fmt.time(Instant.ofEpochMilli(at).atZone(ZoneId.systemDefault()))}")
         shareFacts(c, state(c), at, force = true)
+        if (p.kind == Kind.WORK) dev.phonerecall.qol.WorkMuteCore.arrived(c)
+        if (p.kind == Kind.HOME) dev.phonerecall.qol.Later.arrivedHome(c)
+        dev.phonerecall.shortcuts.ShortcutsCore.trigger(c, "arrive:${p.kind.name.lowercase()}", if (p.kind == Kind.HOME) "you get home" else if (p.kind == Kind.WORK) "you get to the office" else "you get to ${p.name}")
+        dev.phonerecall.hestia.HestiaRoutines.event(c, dev.phonerecall.hestia.Moment.ARRIVE, routinePlace(p))
+    }
+
+    /**
+     * A geofence exit (his pin or Odyssey's Home and office): when activity recognition hasn't said IN_VEHICLE,
+     * the drive starts from here, so a missed transition no longer loses the whole drive.
+     */
+    fun geofenceExit(c: Context, at: Long = System.currentTimeMillis()) {
+        if (!Visits.startOnExit(state(c))) return
+        dev.phonerecall.clio.Clio.info("odyssey", "drive from geofence exit")
+        transitions(c, listOf(Act.VEHICLE_ENTER to at))
     }
 
     fun leftPlace(c: Context, placeId: String, at: Long = System.currentTimeMillis()) {
+        geofenceExit(c, at)
         val p = state(c).place(placeId) ?: return
         OdysseyStore.update(c) { d ->
             val i = d.arrivals.indexOfLast { it.placeId == placeId && it.left == null }
@@ -225,7 +277,12 @@ object Odyssey {
         }
         dev.phonerecall.clio.Clio.info("odyssey", "left", "${p.name} ${dev.phonerecall.home.Fmt.time(Instant.ofEpochMilli(at).atZone(ZoneId.systemDefault()))}")
         shareFacts(c, state(c), at, force = true)
+        if (p.kind == Kind.WORK) dev.phonerecall.qol.WorkMuteCore.left(c)
+        dev.phonerecall.hestia.HestiaRoutines.event(c, dev.phonerecall.hestia.Moment.LEAVE, routinePlace(p))
     }
+
+    /** The place as a home routine names it: home, work, or its name. */
+    private fun routinePlace(p: KnownPlace) = when (p.kind) { Kind.HOME -> "home"; Kind.WORK -> "work"; else -> p.name.lowercase() }
 
     /** His one tap on "Show Groceries when you arrive?": the geofence and the lists. Place questions come here by their "g" id. */
     fun accept(c: Context, placeId: String) {
@@ -295,7 +352,7 @@ object Odyssey {
     fun get(url: String): String {
         NetGate.check(url)
         val t0 = System.currentTimeMillis()
-        val conn = URL(url).openConnection() as HttpURLConnection
+        val conn = dev.phonerecall.brain.TlsGuard.open(url)
         try {
             conn.connectTimeout = 10_000; conn.readTimeout = 15_000; conn.instanceFollowRedirects = false
             conn.setRequestProperty("Accept", "application/json")
@@ -432,6 +489,8 @@ object Odyssey {
         val now = ZonedDateTime.now(zone)
         val ms = now.toInstant().toEpochMilli()
         shareFacts(c, d, ms)
+        runCatching { DriveSense.arm(c) }
+        runCatching { heal(c) }
         runCatching { learn(c) }
         // The car: Iris looks up the lease once; late answers to any ask are read here too.
         runCatching { Garage.askLease(c); if (d.car.asks.isNotEmpty()) Garage.poll(c) }

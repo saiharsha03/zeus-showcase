@@ -59,7 +59,7 @@ object PhoneSources {
 
     fun all(app: Context, core: BrainCore): List<PhoneSource> {
         val zone = ZoneId.systemDefault()
-        val labels: () -> Map<String, String> = { core.store.people().filter { !it.calypso && it.relation != null }.associate { it.name to it.label } }
+        val labels: () -> Map<String, String> = { core.store.related().filter { !it.calypso }.associate { it.name to it.label } }
         return listOf(
             source("Reading your calendar") { calendar(app, zone) },
             source("Your app habits") { usage(app, zone) },
@@ -349,6 +349,9 @@ class TheogonyHub private constructor(private val app: Context) {
     fun start() = run { seed(::publishNow) }
     fun refresh() = run { resetForRefresh(); seed(::publishNow) }
     fun skipWaiting() = run { skipWaiting() }
+    /** The fresh start: the phone read again after setup, and the questions planned again with Annabeth's. */
+    fun rereadPhone() = run { rereadPhone(::publishNow) }
+    fun replan() = run { replan() }
     fun answer(id: String, text: String) = answering(id, text) { answer(id, text) }
     fun skip(id: String) = answering(id, Interview.SKIP) { skip(id) }
     fun later() = run { say(_state.value.question?.id, "later") }

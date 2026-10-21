@@ -434,7 +434,9 @@ class CallActionActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val key = intent.getStringExtra("key"); val via = intent.getStringExtra("via")
-        if (key != null && via != null) Rhythms.placeCall(this, key, via)?.let { Toast.makeText(this, it, Toast.LENGTH_LONG).show() }
+        // Late at night in India: ask first (qol/IndiaClock), unless this is his "Call anyway".
+        val held = key != null && via != null && !intent.getBooleanExtra("force", false) && runCatching { dev.phonerecall.qol.IndiaClock.askFirst(this, key, via) }.getOrDefault(false)
+        if (key != null && via != null && !held) Rhythms.placeCall(this, key, via)?.let { Toast.makeText(this, it, Toast.LENGTH_LONG).show() }
         finish()
     }
 }

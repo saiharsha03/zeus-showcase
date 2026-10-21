@@ -73,6 +73,14 @@ class TriageTest {
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
 class SenseFlowTest {
+    @Test fun relatedOpensOnlyPeopleWithARelation() {
+        val rig = EngineRig()
+        rig.store.savePerson(Person(People.keyOf("Amma"), "Amma", Relation.MOTHER, confirmed = true, asked = true))
+        rig.store.savePerson(Person(People.keyOf("Courier"), "Courier", null))
+        assertEquals(listOf("Amma"), rig.store.related().map { it.name })
+        assertEquals(2, rig.store.people().size)
+    }
+
     @Test fun ammaCalledTwice() {
         val rig = EngineRig()
         rig.store.savePerson(Person(People.keyOf("Amma"), "Amma", Relation.MOTHER, confirmed = true, asked = true))

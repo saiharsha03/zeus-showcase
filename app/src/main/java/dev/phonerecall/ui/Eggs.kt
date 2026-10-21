@@ -21,10 +21,10 @@ object Eggs {
         OWLS("The owls", "Opening Zeus between 3 and 4 AM"),
         HERACLES("Heracles rested", "Praxis with nothing open"),
         LETHE("The river", "Opening Lethe"),
-        ATHENA_OWL("Athena's owl", "A long press on Athena in an empty Delphi"),
+        ATHENA_OWL("Athena's owl", "A long press on Athena in an empty chat"),
         METIS("Swallowed whole", "Three taps on Metis's coin in Pantheon"),
-        ANNABETH("Wise Girl", "Asking Annabeth in Delphi"),
-        ORACLE("The oracle", "Asking Delphi who she is"),
+        ANNABETH("Wise Girl", "Asking Annabeth in the chat"),
+        ORACLE("The oracle", "Asking Athena who she is"),
         ATTIC("Attic numerals", "Up, up, down, down on the Chronos title"),
         LAUREL("Laurel", "Your birthday, in Chronos"),
         EPITHETS("Epithets", "A long press on Plain names in Themis"),
@@ -143,7 +143,7 @@ object Eggs {
     /** The hidden alternate subtitles: Homeric-style epithets. */
     val EPITHETS = mapOf(
         Place.HOME to "Many-ridged, snowy Olympus",
-        Place.ORACLE to "Navel of the world",
+        Place.ORACLE to "Grey-eyed, and listening",
         Place.CALENDAR to "Who devours his children, the hours",
         Place.TASKS to "Deed after deed, the work made real",
         Place.CLOSET to "Laughter-loving, golden Venus",
@@ -177,5 +177,6 @@ object Eggs {
         Place.AGORA to "Where the many-voiced gather to speak",
         Place.HOROLOGION to "Book of the hours, kept by the watchful",
         Place.SETUP to "Rite of the mysteries, where the initiate begins",
+        Place.START to "First of all things, out of Chaos",
     )
 }

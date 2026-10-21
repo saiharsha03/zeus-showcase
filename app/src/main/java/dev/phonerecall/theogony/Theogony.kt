@@ -149,6 +149,10 @@ object Seed {
                 "each line as \"YYYY-MM-DD | one-line label\" (YYYY-MM when the day is unknown); only what you can back with an email, a contract or owner.db",
         ),
         AskSection("projects", "Ongoing projects", SeedPath.PROFILE, "what he is working on or planning, at a high level"),
+        // The fresh start's asks (2.1): what Zeus needs on day one that only Iris may know.
+        AskSection("profile", "Profile basics", SeedPath.PROFILE, "what he does for work (role and company), the city he lives in, languages; no addresses"),
+        AskSection("accounts", "His accounts", SeedPath.PROFILE, "which email, bank, card and app accounts are his, by provider name only (no numbers, addresses or amounts)"),
+        AskSection("senders", "Senders that matter", SeedPath.PREFERENCES, "which mail senders and apps always matter (work, bank alerts, family) and which are noise (promotions, newsletters), by label or company"),
         AskSection("must_know", "Anything else Athena must know", SeedPath.PROFILE, "anything else that helps a new assistant on day one"),
     )
 
@@ -363,6 +367,14 @@ object Interview {
     /** Multi-select answers are joined with "; " (names may hold commas). */
     fun parts(answer: String): List<String> = answer.split(';').map { it.trim() }.filter { it.isNotEmpty() }
 
+    /** Gaps beyond the checklist, asked first: the fresh start's topics as Annabeth planned them (fresh/GenesisGaps). Read when asked. */
+    @Volatile var extras: () -> List<Gap> = { emptyList() }
+
+    /** His answer to a gap, after its fact is kept: the fresh start files it in the right store too (Places, Olympia...). */
+    @Volatile var onAnswer: ((Gap, String) -> Unit)? = null
+
+    fun gap(id: String?): Gap? = if (id == null) null else CHECKLIST.firstOrNull { it.id == id } ?: extras().firstOrNull { it.id == id }
+
     val CHECKLIST: List<Gap> = listOf(
         Gap("wake", SeedPath.ROUTINES, "When do you usually wake up on workdays?", listOf("6:30 AM", "7 AM", "7:30 AM", "8 AM"), Regex("(?i)\\b(wakes?|waking|up at|alarm)\\b"), { "Wakes up around $it on workdays." }),
         Gap("sleep", SeedPath.ROUTINES, "And when do you usually go to bed?", listOf("10:30 PM", "11 PM", "Midnight", "Later"), Regex("(?i)\\b(bed|bedtime|sleeps?|asleep)\\b"), { "Usually in bed around ${it.lowercase()}." }),
@@ -405,6 +417,8 @@ object Interview {
             if (inferred.any { matches(g, it) }) return
             out += Question(g.id, gap = g.id, text = g.question, chips = g.chips, multi = g.multi)
         }
+        extras().forEach(::gap)
+        val lead = out.size
         CHECKLIST.take(3).forEach(::gap)
         out += PeopleSeed.questions(roster, asked)
         CHECKLIST.drop(3).take(2).forEach(::gap)
@@ -420,7 +434,7 @@ object Interview {
             if (id in asked) continue
             out += Question(id, factKey = f.key, text = "Is this right? \"${f.text}\"", chips = listOf(YES, NOT_QUITE, FORGET))
         }
-        return out.take(max)
+        return out.take(max + lead)
     }
 
     /** Still a question worth asking, given what is known now (Iris may have answered meanwhile). */
@@ -428,7 +442,7 @@ object Interview {
         q.id.startsWith("p:") -> PeopleSeed.stillOpen(q.id, roster)
         q.id == MILESTONE_Q -> missingMilestones(facts).isNotEmpty()
         q.bundle.isNotEmpty() -> facts.any { it.key in q.bundle && it.status != Status.CONFIRMED }
-        q.gap != null -> CHECKLIST.firstOrNull { it.id == q.gap }?.let { !covered(it, facts) } ?: false
+        q.gap != null -> gap(q.gap)?.let { !covered(it, facts) } ?: false
         q.factKey != null -> facts.any { it.key == q.factKey && it.status == Status.INFERRED }
         else -> false
     }
@@ -589,6 +603,26 @@ class TheogonyEngine(
         }
         progress()
 
+        readPhone(clean, progress)
+        phase = if (kv.get(K_ASK_MSG) != null) Phase.ASKING else Phase.SEEDING
+        progress()
+        poll(progress)
+    }
+
+    /**
+     * The phone's part of the seed again, for permissions granted since (the fresh start asks Iris during setup, before
+     * he has allowed everything). Iris's ask and his answers stay; the questions still to come are trimmed.
+     */
+    fun rereadPhone(progress: () -> Unit = {}) {
+        readPhone(sanitizer(), progress)
+        trimQueue()
+        progress()
+    }
+
+    /** Freezes the questions again (the fresh start's gaps arrived): his answers stay asked. */
+    fun replan() { if (phase == Phase.INTERVIEW || phase == Phase.DONE) plan() }
+
+    private fun readPhone(clean: Sanitizer, progress: () -> Unit) {
         people?.let { src ->
             step(PEOPLE_LABEL) { it.copy(status = StepStatus.RUNNING) }
             progress()
@@ -613,9 +647,6 @@ class TheogonyEngine(
             step(src.label) { it.copy(status = StepStatus.DONE, learned = got.size) }
         }
         merge(phoneFacts, "phone")
-        phase = if (kv.get(K_ASK_MSG) != null) Phase.ASKING else Phase.SEEDING
-        progress()
-        poll(progress)
     }
 
     /** The people lines in memory, regenerated from the roster. Returns how many. */
@@ -718,8 +749,9 @@ class TheogonyEngine(
                 }
             }
             else -> {
-                val g = Interview.CHECKLIST.first { it.id == q.gap }
+                val g = Interview.gap(q.gap) ?: return markAsked(questionId)
                 SeedFilter.clean(clean, g.statement(words))?.let { add(SeedFact(g.path, it, "you", 1.0, g.id, Status.CONFIRMED)) }
+                runCatching { Interview.onAnswer?.invoke(g, words) }
                 if (g.settings.isNotEmpty()) {
                     val chosen = Interview.parts(words).mapNotNull { w -> g.settings[w]?.let { w to it } }
                     val now = proposals()
@@ -793,7 +825,7 @@ class TheogonyEngine(
      */
     fun askIris(questionId: String) {
         val q = queue().firstOrNull { it.id == questionId && it.gap != null } ?: return
-        val g = Interview.CHECKLIST.firstOrNull { it.id == q.gap } ?: return
+        val g = Interview.gap(q.gap) ?: return
         val iris = iris?.takeIf { runCatching { it.available() }.getOrDefault(false) } ?: return
         record(q, Interview.ASK_IRIS)
         val id = newId()
@@ -808,7 +840,7 @@ class TheogonyEngine(
         val asks = gapAsks().takeIf { it.isNotEmpty() } ?: return
         val left = ArrayList<GapAsk>()
         for (a in asks) {
-            val g = Interview.CHECKLIST.firstOrNull { it.id == a.gap } ?: continue
+            val g = Interview.gap(a.gap) ?: continue
             val about = g.question.trimEnd('?').replaceFirstChar { it.lowercase() }
             val text = runCatching { iris.reply(a.msg) }.getOrNull()
             val r = text?.let { SeedAsk.parse(it, a.id) }

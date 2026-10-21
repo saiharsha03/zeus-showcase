@@ -114,6 +114,14 @@ fun HomeScreen(vm: AthenaViewModel, columns: Int, gutter: Dp, showOwl: Boolean, 
     val refreshing by vm.refreshing.collectAsStateWithLifecycle()
     val calendarAsk = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { vm.refreshCalendar() }
     val context = androidx.compose.ui.platform.LocalContext.current
+    // One-tap agency: Call back asks for the phone-call permission once, then dials; Share photos opens the picker.
+    var pendingCall by remember { mutableStateOf<String?>(null) }
+    val callAsk = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { pendingCall?.let { dev.phonerecall.brain.Agency.fire(context, it) }; pendingCall = null }
+    var photosTo by remember { mutableStateOf<Pair<String, ScoredCard>?>(null) }
+    val photoPick = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(10)) { uris ->
+        photosTo?.let { (pkg, card) -> if (dev.phonerecall.brain.Agency.sharePhotos(context, pkg, uris)) vm.dismiss(card) }
+        photosTo = null
+    }
 
     BackHandler(mode != HomeMode.BOARD) {
         if (mode == HomeMode.ADD) vm.closeAdd() else vm.setMode(HomeMode.BOARD)
@@ -129,6 +137,7 @@ fun HomeScreen(vm: AthenaViewModel, columns: Int, gutter: Dp, showOwl: Boolean, 
             var odoFor by remember { mutableStateOf<String?>(null) }
             val calendars by vm.calendars.collectAsStateWithLifecycle()
             LaunchedEffect(notice) { if (notice != null) { delay(2600); notice = null } }
+            val reply = remember { ReplyBox() }
             val cb = remember(vm) {
                 CardCallbacks(
                     onAction = { card, a ->
@@ -138,6 +147,7 @@ fun HomeScreen(vm: AthenaViewModel, columns: Int, gutter: Dp, showOwl: Boolean, 
                             ActionRole.OPEN_TASKS -> { vm.action(card, a); navigate(Dest.TASKS) }
                             ActionRole.OPEN_REVIEW -> { vm.action(card, a); vm.openReview(); navigate(Dest.TASKS) }
                             ActionRole.OPEN_OLYMPIA -> { vm.action(card, a); navigate(Dest.OLYMPIA) }
+                            ActionRole.WATCH -> { vm.action(card, a); if (a.payload == null || !dev.phonerecall.olympia.WatchApps.open(context, a.payload)) navigate(Dest.OLYMPIA) }
                             ActionRole.OPEN_WEATHER -> { vm.action(card, a); navigate(Dest.WEATHER) }
                             ActionRole.OPEN_ODYSSEY -> { vm.action(card, a); navigate(Dest.ODYSSEY) }
                             ActionRole.OPEN_HESTIA -> { vm.action(card, a); navigate(Dest.DEVICES) }
@@ -148,6 +158,10 @@ fun HomeScreen(vm: AthenaViewModel, columns: Int, gutter: Dp, showOwl: Boolean, 
                                         context.startActivity(android.content.Intent(if (p.startsWith("tel:")) android.content.Intent.ACTION_DIAL else android.content.Intent.ACTION_VIEW, android.net.Uri.parse(p)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
                                     }
                                 }
+                            }
+                            ActionRole.LINK -> {
+                                vm.action(card, a)
+                                a.payload?.let { p -> runCatching { context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(p)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) } }
                             }
                             ActionRole.ALARM_OTHER -> { vm.action(card, a); askOther = a.payload?.toIntOrNull() }
                             ActionRole.OPEN_ALARMS -> {
@@ -172,8 +186,46 @@ fun HomeScreen(vm: AthenaViewModel, columns: Int, gutter: Dp, showOwl: Boolean, 
                                     runCatching { context.startActivity(dev.phonerecall.odyssey.Odyssey.mapsIntent(lat, lng)) }
                                 }
                             }
+                            ActionRole.TOUCH -> {
+                                vm.action(card, a)
+                                dev.phonerecall.qol2.Touches.tap(context, a.payload, undo = { undo = it }, say = { notice = card.id to it }, go = { w ->
+                                    when (w) { "moneta" -> navigate(Dest.MONEY); "olympia" -> navigate(Dest.OLYMPIA) }
+                                })
+                            }
+                            ActionRole.LIVE -> {
+                                vm.action(card, a)
+                                val p = a.payload.orEmpty()
+                                if (dev.phonerecall.brain.Agency.wantsCallPermission(context, p)) {
+                                    // Asked once; the call goes out from the permission's answer, and the card is done.
+                                    pendingCall = p; callAsk.launch(Manifest.permission.CALL_PHONE); vm.dismiss(card)
+                                } else {
+                                    val o = dev.phonerecall.brain.Agency.fire(context, p)
+                                    when (o) {
+                                        is dev.phonerecall.brain.Agency.Outcome.Reply -> reply.open(card.id, a, o.draft)
+                                        is dev.phonerecall.brain.Agency.Outcome.PickPhotos -> {
+                                            photosTo = o.pkg to card
+                                            photoPick.launch(androidx.activity.result.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo))
+                                        }
+                                        dev.phonerecall.brain.Agency.Outcome.Gone -> notice = card.id to "That notification is gone."
+                                        dev.phonerecall.brain.Agency.Outcome.Done -> Unit
+                                    }
+                                    // The card finishes itself, as a swipe would, with Undo.
+                                    if (dev.phonerecall.brain.Finish.byTap(o)) { vm.dismiss(card); undo = Undo("Done.") { vm.undismiss(card) } }
+                                }
+                            }
+                            ActionRole.LIVE_SEND -> {
+                                vm.action(card, a)
+                                // One tap on that exact text sends it; the card is done, with Undo.
+                                if (dev.phonerecall.brain.Agency.say(context, a.payload.orEmpty())) { vm.dismiss(card); undo = Undo("Sent.") { vm.undismiss(card) } }
+                                else notice = card.id to "Couldn't send. Open the app to reply."
+                            }
                             else -> if (!vm.action(card, a)) notice = card.id to "Preview only. Actions are wired up in phase 2."
                         }
+                    },
+                    reply = reply,
+                    onSend = { card, a, text ->
+                        if (dev.phonerecall.brain.Agency.send(context, a.payload.orEmpty(), text)) { reply.close(); vm.dismiss(card); undo = Undo("Sent.") { vm.undismiss(card) } }
+                        else notice = card.id to "Couldn't send. Open the app to reply."
                     },
                     onTaskDone = { card, id -> vm.completeTask(id, card); undo = Undo("Done.") { vm.uncompleteTask(id) } },
                     onTaskSnooze = { card, id -> vm.snoozeTask(card, id); undo = Undo("Snoozed for 3 hours.") { vm.unsnoozeTask(id) } },
@@ -544,7 +596,7 @@ private fun previewState(sample: Boolean, sports: dev.phonerecall.olympia.Sports
 
 /** Olympus with only what the senses made: notification cards and the proposals under the header. Screenshot test only. */
 @Composable
-internal fun PreviewSenseCards(cards: List<GeneratedCard>, proposals: List<dev.phonerecall.brain.Proposal>, gutter: Dp) {
+internal fun PreviewSenseCards(cards: List<GeneratedCard>, proposals: List<dev.phonerecall.brain.Proposal>, gutter: Dp, cb: CardCallbacks = CardCallbacks(), columns: Int = 1) {
     AthenaTheme(true) {
         Box(Modifier.fillMaxSize().background(Athena.colors.surface)) {
             OlympusBackdrop()
@@ -559,7 +611,7 @@ internal fun PreviewSenseCards(cards: List<GeneratedCard>, proposals: List<dev.p
                 )
                 ScreenHeader(Place.HOME.title(), gutter, emblem = Place.HOME, kicker = board.title, subtitle = Place.HOME.subtitle()) { TextAction("Edit", {}) }
                 Board(
-                    HomeState(ready = true, board = board), 1, gutter, null, null, null, CardCallbacks(), false, {}, {}, {}, { _, _ -> }, {}, {}, {},
+                    HomeState(ready = true, board = board), columns, gutter, null, null, null, cb, false, {}, {}, {}, { _, _ -> }, {}, {}, {},
                     header = {
                         Column(verticalArrangement = Arrangement.spacedBy(Space.blockGap)) {
                             for (p in proposals) dev.phonerecall.brain.FatesCard(p, dev.phonerecall.brain.FatesCallbacks())

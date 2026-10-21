@@ -90,6 +90,12 @@ class IasoPrivacyTest {
                 // Iaso's own home-screen widget, only when he places it: steps, the weight trend, last night's sleep.
                 "widgets/WidgetContent.kt" to setOf("IasoState", "WeightTrend", "Goals"),
                 "widgets/WidgetBus.kt" to setOf("Iaso"),
+                // Small touches: two derived facts (a short night, when steps last synced), for Home cards with no numbers and no Now Bar line.
+                "qol2/Touches.kt" to setOf("IasoGlance"),
+                // Small touches (qol/): one derived fact (a quiet day on foot) for the afternoon walk card, no count.
+                "qol/QolAndroid.kt" to setOf("IasoGlance"),
+                // read_zeus: the owner chose (2026-10-20) that Athena reads all of Zeus but Calypso, health numbers included.
+                "mind/ZeusAreas.kt" to setOf("Iaso", "IasoState", "SleepNight", "WeightTrend"),
             ),
             uses(),
         )

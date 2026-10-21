@@ -21,6 +21,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -56,7 +58,24 @@ class CardCallbacks(
     val onLess: (ScoredCard) -> Unit = {},
     val onHideLike: (ScoredCard) -> Unit = {},
     val onCloseMenu: () -> Unit = {},
+    /** The one inline reply open on Home (one-tap agency), and his Send on it. */
+    val reply: ReplyBox = ReplyBox(),
+    val onSend: (ScoredCard, CardAction, String) -> Unit = { _, _, _ -> },
 )
+
+/** Which card's reply field is open, for which button, and the text so far. Prefilled with Athena's draft when she wrote one. */
+@androidx.compose.runtime.Stable
+class ReplyBox {
+    var card by androidx.compose.runtime.mutableStateOf<String?>(null)
+        private set
+    var action: CardAction? = null
+        private set
+    var text by androidx.compose.runtime.mutableStateOf("")
+
+    fun open(card: String, a: CardAction, draft: String?) { action = a; text = draft.orEmpty(); this.card = card }
+
+    fun close() { card = null; action = null; text = "" }
+}
 
 /**
  * One block on its own tinted surface, in one of four forms (hero blob, leaf, capsule, tile). A card
@@ -115,6 +134,8 @@ fun CardZone(
                 BlockLayout.TILE -> TileBody(k)
                 else -> FullBody(card, cb)
             }
+            if (k.replies.isNotEmpty() && form.layout != BlockLayout.TILE && cb.reply.card != card.id) ReplyChips(card, cb)
+            if (cb.reply.card == card.id) ReplyField(card, cb)
             if (notice != null) {
                 Spacer(Modifier.height(Space.s))
                 Line(notice, Type.small, c.ink2)
@@ -124,6 +145,40 @@ fun CardZone(
         if (form.badge > 0.dp && k.stat != null) {
             Badge(k.stat, card, form.badge, Modifier.align(Alignment.TopEnd).padding(end = form.notchInset - badgeR))
         }
+    }
+}
+
+/** One-tap replies: each chip shows the whole text it sends, and sends it when tapped. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ReplyChips(card: ScoredCard, cb: CardCallbacks) {
+    val c = Athena.colors
+    Spacer(Modifier.height(Space.xs))
+    // Bordered, so the chips line up with the text column (not pulled left like the plain text buttons), with room between rows.
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.xs), verticalArrangement = Arrangement.spacedBy(Space.xs)) {
+        card.content.replies.forEachIndexed { i, a ->
+            Box(
+                Modifier
+                    .heightIn(min = 44.dp)
+                    .clip(RoundedCornerShape(Radius.forSize(44.dp)))
+                    .border(1.dp, c.rule, RoundedCornerShape(Radius.forSize(44.dp)))
+                    .clickable(role = Role.Button) { cb.onAction(card, a) }
+                    .padding(horizontal = Space.m, vertical = Space.s),
+                contentAlignment = Alignment.CenterStart,
+            ) { Line(a.label, Type.action, if (i == 0) c.accentInk else c.ink, maxLines = 3) }
+        }
+    }
+}
+
+/** The inline reply: the text goes to the app's own reply only when he taps Send. */
+@Composable
+private fun ReplyField(card: ScoredCard, cb: CardCallbacks) {
+    val box = cb.reply
+    Spacer(Modifier.height(Space.s))
+    dev.phonerecall.ui.UnderlineField(box.text, { box.text = it }, "Reply", Modifier.fillMaxWidth())
+    Row(Modifier.offset(x = -Space.s), horizontalArrangement = Arrangement.spacedBy(Space.xs)) {
+        TextAction("Send", { box.action?.let { a -> cb.onSend(card, a, box.text) } }, emphasis = true, enabled = box.text.isNotBlank())
+        TextAction("Cancel", { box.close() })
     }
 }
 

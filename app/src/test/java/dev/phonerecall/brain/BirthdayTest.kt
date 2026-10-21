@@ -16,7 +16,7 @@ class BirthdayTest {
         assertEquals("Alex", name("Happy birthday Alex!!"))
         assertEquals("Alex", name("HBD alex anna 🎂"))
         assertEquals("Alex", name("happy bday dear Alex, have a great year"))
-        assertEquals("Sita", name("Many happy returns of the day Sita"))
+        assertEquals("Maya", name("Many happy returns of the day Maya"))
         assertEquals("Alex", name("Alex, happy birthday!"))
         assertEquals("Alex", name("@Alex happy b'day"))
         assertEquals("Riley", name("Happiest birthday to our Riley"))
@@ -41,7 +41,7 @@ class BirthdayTest {
     }
 
     @Test fun theGroupsRepeatedNameWins() {
-        val wishes = listOf(Wish("hbd", "Alex"), Wish("happy birthday", null), Wish("happy birthday", "Alex"), Wish("hbd", "Sita"))
+        val wishes = listOf(Wish("hbd", "Alex"), Wish("happy birthday", null), Wish("happy birthday", "Alex"), Wish("hbd", "Maya"))
         assertEquals("Alex", BirthdayCatcher.resolve(wishes, "Family"))
         assertEquals("Alex", BirthdayCatcher.resolve(listOf(Wish("happy birthday", null)), "Alex's birthday 🎉"))
         assertNull(BirthdayCatcher.resolve(listOf(Wish("happy birthday", null)), "Family"))

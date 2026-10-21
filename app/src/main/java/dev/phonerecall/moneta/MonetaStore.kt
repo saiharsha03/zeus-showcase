@@ -8,6 +8,7 @@ import androidx.compose.runtime.Immutable
 import com.anthropic.core.jsonMapper
 import com.fasterxml.jackson.core.type.TypeReference
 import dev.phonerecall.brain.Sealer
+import dev.phonerecall.brain.reseal
 import java.time.LocalDate
 
 /** One line in Moneta's change log. `undo` is null for changes that can't be taken back (a ledger sync). */
@@ -37,6 +38,9 @@ class MonetaStore(context: Context, private val sealer: Sealer, name: String? = 
             db.execSQL("CREATE TABLE IF NOT EXISTS changes (id INTEGER PRIMARY KEY AUTOINCREMENT, at INTEGER NOT NULL, blob TEXT NOT NULL, undone INTEGER NOT NULL DEFAULT 0)")
         }
     }
+
+    /** Every sealed blob, rewritten once into the sealer's current format (envelopes). */
+    fun reseal(): Int = writableDatabase.let { db -> listOf("txns", "kv", "changes").sumOf { db.reseal(sealer, it, listOf("blob")) } }
 
     // ---- transactions ----
 

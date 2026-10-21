@@ -14,7 +14,13 @@ import dev.phonerecall.hestia.FakeHomeBackend
 import dev.phonerecall.hestia.HestiaCalls
 import dev.phonerecall.hestia.HestiaContent
 import dev.phonerecall.hestia.HomeSnapshot
+import dev.phonerecall.hestia.DeviceKind
+import dev.phonerecall.hestia.HomeDevice
 import dev.phonerecall.hestia.Link
+import dev.phonerecall.hestia.Moment
+import dev.phonerecall.hestia.Routine
+import dev.phonerecall.hestia.RoutinesData
+import dev.phonerecall.hestia.Trait
 import dev.phonerecall.ui.Athena
 import dev.phonerecall.ui.AthenaTheme
 import dev.phonerecall.ui.Space
@@ -41,11 +47,32 @@ class HestiaShots {
         File(dir, "$name.png").outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
     }
 
-    @Composable private fun Page(dark: Boolean, s: HomeSnapshot, gutter: Dp, wide: Boolean, away: Boolean? = true, open: String? = null, notice: String? = null) = AthenaTheme(dark) {
-        Box(Modifier.fillMaxSize().background(Athena.colors.surface)) { HestiaContent(s, away, gutter, wide, notice, HestiaCalls(), startOpen = open) }
+    @Composable private fun Page(
+        dark: Boolean, s: HomeSnapshot, gutter: Dp, wide: Boolean, away: Boolean? = true, open: String? = null, notice: String? = null,
+        routines: RoutinesData? = null, routine: String? = null,
+    ) = AthenaTheme(dark) {
+        Box(Modifier.fillMaxSize().background(Athena.colors.surface)) { HestiaContent(s, away, gutter, wide, notice, HestiaCalls(), startOpen = open, routines = routines, startRoutine = routine) }
     }
 
     private val home = FakeHomeBackend.sample()
+
+    /** His home with the computer on a bedroom plug, pre-tagged; the leaving routine ran this morning. */
+    private val pcHome = home.copy(devices = home.devices + HomeDevice("pc", "Computer", DeviceKind.PLUG, "r2", "s1", traits = setOf(Trait.ON_OFF), on = true))
+    private val routines = RoutinesData(never = setOf("pc"), seeded = true).let { d ->
+        val morning = java.time.ZonedDateTime.of(2026, 10, 20, 8, 12, 0, 0, java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+        d.copy(routines = d.routines.map {
+            if (it.id == "leave") it.copy(runs = 3, lastRun = morning, lastWords = "Bedside lamp, Air purifier plug off", lastIds = listOf(4L), history = listOf(
+                dev.phonerecall.hestia.RunLine(morning - 86_400_000L, "Bedside lamp off"), dev.phonerecall.hestia.RunLine(morning - 3_600_000L, "you look asleep, so this is a GPS jump, not a departure", ran = false),
+                dev.phonerecall.hestia.RunLine(morning, "Bedside lamp, Air purifier plug off"),
+            )) else it
+        } + Routine("rt-1", "Hall light at night", Moment.ARRIVE, ifs = listOf(dev.phonerecall.hestia.Cond("after", "21:00")), turnOn = true, devices = listOf("d9"), source = "chat"))
+    }
+
+    @Test @Config(sdk = [35], qualifiers = "w384dp-h3000dp-xhdpi")
+    fun routinesDark() { compose.setContent { Page(true, pcHome, Space.gutterNarrow, false, away = false, routines = routines, routine = "leave") }; save("hestia-routines-dark") }
+
+    @Test @Config(sdk = [35], qualifiers = "w384dp-h3000dp-xhdpi")
+    fun routinesLight() { compose.setContent { Page(false, pcHome, Space.gutterNarrow, false, away = false, routines = routines, routine = "asleep") }; save("hestia-routines-light") }
 
     @Test @Config(sdk = [35], qualifiers = "w384dp-h1800dp-xhdpi")
     fun coverDark() { compose.setContent { Page(true, home, Space.gutterNarrow, false, open = "d1") }; save("hestia-cover-dark") }

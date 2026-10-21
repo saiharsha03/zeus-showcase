@@ -109,6 +109,8 @@ object NowBar {
             )
             .addExtras(extras)
         if (live.sample) b.setSubText("Sample")
+        // A match's chip: Watch opens the app carrying it (installed only), else nothing extra.
+        runCatching { dev.phonerecall.olympia.WatchApps.pending(c, live.watch) }.getOrNull()?.let { b.addAction(0, "Watch", it) }
         if (live.countdownTo != null) {
             b.setWhen(live.countdownTo).setShowWhen(true).setUsesChronometer(true).setChronometerCountDown(true)
             // Gone by itself shortly after the start if no update arrives.
@@ -168,6 +170,10 @@ object NowBar {
             generated = if (p.sample) SampleData.generated(now) else emptyList(), generatedAreSamples = true,
             morning = dev.phonerecall.brief.BriefStore.state.value ?: runCatching { dev.phonerecall.brief.BriefStore.load(c) }.getOrNull(),
             trip = runCatching { dev.phonerecall.argo.Argo.home(c, now.toInstant().toEpochMilli(), now.zone) }.getOrNull(),
+            sports = runCatching {
+                dev.phonerecall.olympia.OlympiaCards.card(dev.phonerecall.olympia.OlympiaStore.load(c), now, dev.phonerecall.olympia.WatchApps.chooser(c)) { dev.phonerecall.olympia.WatchApps.quiet(c) }
+            }.getOrNull(),
+            touches = if (p.sample) emptyList() else dev.phonerecall.qol2.Touches.cards(c, now, cur.snapshot.events, cur.availability[now.toLocalDate()]?.type == dev.phonerecall.data.DayType.WORKDAY),
         )
         return inputs to CardEngine.build(inputs)
     }

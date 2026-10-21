@@ -11,6 +11,10 @@
   - api.tomtom.com and 511ny.org: Odyssey's traffic checks (TomTom gets the two ends of one trip at check time)
   - generativelanguage.googleapis.com: Gemini Live (voice), only the Live WebSocket and only while a session is open (NetGate)
   - www.googleapis.com: Google Calendar birthday events only (the primary calendar's events path, NetGate)
+  - TLS chain guard (brain/TlsGuard.kt): eight eMudhra (emSign) intermediate CA keys were
+    compromised and Android's system store may keep emSign roots for a while. None of these hosts uses eMudhra, so
+    every client wraps the system trust manager and refuses any chain naming eMudhra or emSign. Revisit once
+    Android's root store drops emSign.
   - api.github.com and release-assets.githubusercontent.com: Prometheus only (PR and CI status, merge, the release
     workflow, and the APK download GitHub redirects to)
   - firebaseinstallations.googleapis.com: Firebase's own code registers this install for FCM wake-ups. The wake-ups

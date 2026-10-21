@@ -139,7 +139,7 @@ fun SettingsScreen(vm: AthenaViewModel, gutter: Dp, go: (dev.phonerecall.Dest) -
     }
     if (page == "clio") {
         androidx.activity.compose.BackHandler { page = null }
-        dev.phonerecall.clio.ClioPage(gutter) { page = null }
+        dev.phonerecall.clio.ClioPage(gutter, back = { page = null }, send = { l -> dev.phonerecall.prometheus.PrometheusDraft.send(l); page = null; go(dev.phonerecall.Dest.IMPROVE) })
         return
     }
     if (page == "remembered") {
@@ -206,10 +206,6 @@ fun SettingsScreen(vm: AthenaViewModel, gutter: Dp, go: (dev.phonerecall.Dest) -
                 val zones = dev.phonerecall.brain.TwoClocks.CHOICES
                 ChoiceRow(if (LocalPlainNames.current) "Second clock" else "Janus · second clock", zones.map { it.second }, zones.indexOfFirst { it.first == settings.secondClock }.coerceAtLeast(0)) { vm.setSecondClock(zones[it].first) }
             }
-            // Auto: Haiku 5.5 for quick turns, Sonnet 5.5 when a turn needs planning or several tools. A model here overrides.
-            "delphi-model" -> ChoiceRow("Delphi model", listOf("Auto") + dev.phonerecall.brain.BrainModel.entries.map { it.label.substringBefore(' ') }, if (brain.auto) 0 else brain.model.ordinal + 1) {
-                if (it == 0) vm.brain.setAuto() else vm.brain.setModel(dev.phonerecall.brain.BrainModel.entries[it - 1])
-            }
             "spend" -> Column { dev.phonerecall.mind.SpendRows(brain.spend, mind); dev.phonerecall.voice.LiveSpendRows() }
             "usage" -> {
                 val usage by remember { dev.phonerecall.metron.MetronCore.get(ctx) }.usage.collectAsStateWithLifecycle()
@@ -227,7 +223,7 @@ fun SettingsScreen(vm: AthenaViewModel, gutter: Dp, go: (dev.phonerecall.Dest) -
             "lemnos" -> SettingRow(Place.VPS.title(), "The server: terminal, files, services and the desktop", onClick = { go(dev.phonerecall.Dest.VPS) }, emblem = Place.VPS)
             "fates" -> SettingRow(Place.PROPOSALS.title(), "Every proposal: waiting, done and rejected", onClick = { go(dev.phonerecall.Dest.FATES) }, emblem = Place.PROPOSALS)
             "mind" -> dev.phonerecall.mind.MindRows(
-                mind, brain.keySet, openRemembered = { page = "remembered" }, openPlaces = { page = "places" }, openMemoryCare = { page = "oneiroi" },
+                mind, brain.keySet, openRemembered = { page = "remembered" }, openPlaces = { dev.phonerecall.odyssey.PlacesNav.open = true; go(dev.phonerecall.Dest.ODYSSEY) }, openMemoryCare = { page = "oneiroi" },
                 toggleHeartbeat = { vm.brain.setHeartbeat(!mind.heartbeat.on) },
                 openHorologion = { go(dev.phonerecall.Dest.HOROLOGION) },
                 openAssistant = { runCatching { ctx.startActivity(android.content.Intent(android.provider.Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS)) } },
@@ -274,6 +270,44 @@ fun SettingsScreen(vm: AthenaViewModel, gutter: Dp, go: (dev.phonerecall.Dest) -
                 "Reads notifications on the phone to make cards, catch birthdays and learn who to answer first. Codes, password managers and bank messages are never kept.",
                 onClick = openListenerSettings,
             ) { StatusWord(if (senses.listening) "Allowed" else "Allow", if (senses.listening) Tone.OK else Tone.ACTIVE) }
+            "known-apps" -> {
+                // Security alerts naming one of these apps are quiet (brain/AccountAlerts).
+                var apps by remember { mutableStateOf(dev.phonerecall.brain.KnownApps.get(ctx)) }
+                var draft by remember { mutableStateOf<String?>(null) }
+                SettingRow(
+                    "Known apps",
+                    "Apps you sign in to with Google yourself. Their security alerts are quiet: ${apps.joinToString(", ").ifEmpty { "none" }}.",
+                    onClick = { draft = apps.joinToString(", ") },
+                ) { StatusWord("${apps.size}", Tone.QUIET) }
+                draft?.let { d ->
+                    UnderlineField(d, { draft = it.take(400) }, "Claude, Notion", Modifier.fillMaxWidth())
+                    Row {
+                        dev.phonerecall.ui.TextAction("Save", {
+                            dev.phonerecall.brain.KnownApps.set(ctx, d.split(',')); apps = dev.phonerecall.brain.KnownApps.get(ctx); draft = null
+                        }, emphasis = true)
+                        dev.phonerecall.ui.TextAction("Cancel", { draft = null })
+                    }
+                }
+            }
+            "call-directly" -> {
+                // One-tap agency: the dial screen by default; a direct call only when he turns it on and Android allows it.
+                var direct by remember { mutableStateOf(dev.phonerecall.brain.Agency.callDirectly(ctx)) }
+                val can = remember { dev.phonerecall.brain.Agency.canCallDirectly(ctx) }
+                SettingRow(
+                    "Call back directly",
+                    if (can || !direct) "A card's Call back places the call. Off: it opens the dial screen and you press call."
+                    else "A card's Call back places the call. Zeus asks for the phone-call permission the first time you tap it.",
+                    onClick = { direct = !direct; dev.phonerecall.brain.Agency.setCallDirectly(ctx, direct) },
+                ) { StatusWord(if (direct) "On" else "Off", if (direct) Tone.ACTIVE else Tone.QUIET) }
+            }
+            "haiku-asks" -> {
+                var on by remember { mutableStateOf(dev.phonerecall.brain.Agency.haikuAsks(ctx)) }
+                SettingRow(
+                    "Smart replies from Haiku",
+                    "When the rules and Nano can't tell what a message asks for, Haiku reads it once, with names, numbers and places replaced. Money, health, visa and dating messages never go. Off: rules and Nano only.",
+                    onClick = { on = !on; dev.phonerecall.brain.Agency.setHaikuAsks(ctx, on) },
+                ) { StatusWord(if (on) "On" else "Off", if (on) Tone.ACTIVE else Tone.QUIET) }
+            }
             "people" -> SettingRow(Place.PEOPLE.title(), "Who matters, and how fast you answer them. On the phone only.", onClick = { go(dev.phonerecall.Dest.PEOPLE) }) {
                 StatusWord("${senses.people.size}", Tone.QUIET)
             }
@@ -375,6 +409,28 @@ fun SettingsScreen(vm: AthenaViewModel, gutter: Dp, go: (dev.phonerecall.Dest) -
                     }
                 }
             }
+            "bins" -> {
+                val mp by dev.phonerecall.moments.MomentsCore.prefs.collectAsStateWithLifecycle()
+                val days = listOf(null) + java.time.DayOfWeek.entries
+                fun word(d: java.time.DayOfWeek?) = d?.getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.US) ?: "Not set"
+                SettingRow("Trash pickup day", "Tap to change. The chip goes up the evening before.", onClick = {
+                    val next = days[(days.indexOf(mp.trashDay) + 1) % days.size]
+                    kotlin.concurrent.thread { dev.phonerecall.qol.Bins.set(ctx.applicationContext, next, mp.trashMinute) }
+                }) { StatusWord(word(mp.trashDay), if (mp.trashDay != null) Tone.ACTIVE else Tone.QUIET) }
+                SettingRow("Reminder time", "The evening before pickup", onClick = {
+                    android.app.TimePickerDialog(ctx, { _, h, m -> kotlin.concurrent.thread { dev.phonerecall.qol.Bins.set(ctx.applicationContext, mp.trashDay, h * 60 + m) } }, mp.trashMinute / 60, mp.trashMinute % 60, false).show()
+                }) { StatusWord(java.time.LocalTime.of(mp.trashMinute / 60, mp.trashMinute % 60).format(java.time.format.DateTimeFormatter.ofPattern("h:mm a", java.util.Locale.US)), Tone.QUIET) }
+            }
+            "street-parking" -> {
+                var open by remember { mutableStateOf(false) }
+                var rule by remember { mutableStateOf<dev.phonerecall.qol.StreetRule?>(null) }
+                LaunchedEffect(Unit) { rule = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { dev.phonerecall.qol.QolCore.load(ctx).street } }
+                SettingRow("Street parking", rule?.let { dev.phonerecall.qol.StreetParking.words(it) } ?: "Alternate-side rule for your street: a reminder 45 minutes before the side flips", onClick = { open = true }) {
+                    StatusWord(if (rule != null) "On" else "Set up", if (rule != null) Tone.ACTIVE else Tone.QUIET)
+                }
+                if (open) dev.phonerecall.qol.StreetParkingDialog(rule, onSave = { r -> rule = r; kotlin.concurrent.thread { dev.phonerecall.qol.StreetParking.save(ctx.applicationContext, r) } }, onDismiss = { open = false })
+            }
+            "touches" -> SettingRow("Small touches", "A switch for each, plus your timers, borrowed things, read-later links and car dates", onClick = { runCatching { ctx.startActivity(dev.phonerecall.qol2.TouchesActivity.intent(ctx)) } })
             "snap" -> SettingRow("Snap the box", "Timers from a box's cooking instructions, read on the phone", onClick = { runCatching { ctx.startActivity(dev.phonerecall.moments.SnapActivity.intent(ctx)) } })
             "sample-cards" -> SettingRow("Show sample cards", "Fills the placeholder cards with realistic examples", onClick = { vm.setSample(!settings.sample) }) {
                 StatusWord(if (settings.sample) "On" else "Off", if (settings.sample) Tone.ACTIVE else Tone.QUIET)

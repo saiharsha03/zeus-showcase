@@ -61,8 +61,10 @@ import dev.phonerecall.ui.Tone
 import dev.phonerecall.ui.Type
 import dev.phonerecall.ui.subtitle
 import dev.phonerecall.ui.title
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
 
 /** What the Hestia screen can do. Taps act directly: these are the owner's own hands, not a model's. */
@@ -71,10 +73,20 @@ class HestiaCalls(
     val send: (deviceId: String, command: HomeCommand) -> Unit = { _, _ -> },
     /** Hold a tile: on or off the home-screen widget. */
     val pick: (deviceId: String) -> Unit = {},
+    /** One routine changed in the editor (on or off, rooms, devices, times). */
+    val routine: (id: String, change: (Routine) -> Routine) -> Unit = { _, _ -> },
+    /** "Never automate" on or off for one device. */
+    val never: (deviceId: String) -> Unit = {},
+    val undoRoutine: (Routine) -> Unit = {},
+    val removeRoutine: (id: String) -> Unit = {},
+    /** Opens Athena's chat with a first line to finish ("Change my ... routine: "). */
+    val chat: (draft: String) -> Unit = {},
+    /** The Routines heading's "New by chat". */
+    val newRoutine: () -> Unit = {},
 )
 
 @Composable
-fun HestiaScreen(wide: Boolean, gutter: Dp) {
+fun HestiaScreen(wide: Boolean, gutter: Dp, onChat: (String) -> Unit = {}) {
     val core = HestiaCore.get(LocalContext.current)
     val s by core.state.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
@@ -83,6 +95,19 @@ fun HestiaScreen(wide: Boolean, gutter: Dp) {
     var picks by remember { mutableStateOf(HestiaPicks.load(ctx)) }
     LaunchedEffect(Unit) { core.backend.start() }
     LaunchedEffect(notice) { if (notice != null) { delay(4000); notice = null } }
+    var routines by remember { mutableStateOf<RoutinesData?>(null) }
+    var learned by remember { mutableStateOf(emptyMap<String, List<String>>()) }
+    /** Reads (and changes) the routines off the main thread; the computer pre-tag runs on the first real device list. */
+    fun routinesDo(change: (RoutineBook) -> Unit = {}) = scope.launch {
+        val (d, l) = withContext(Dispatchers.IO) {
+            val b = HestiaRoutines.book(ctx)
+            change(b)
+            val d = b.update { RoutineRules.seed(it, core.snapshot) }
+            d to d.routines.associate { it.id to HestiaRoutines.learned(ctx, it) }
+        }
+        routines = d; learned = l
+    }
+    LaunchedEffect(s.devices.size, s.link) { routinesDo() }
     val calls = remember(core) {
         HestiaCalls(
             connect = { scope.launch { notice = core.backend.requestPermission() } },
@@ -92,13 +117,22 @@ fun HestiaScreen(wide: Boolean, gutter: Dp) {
                 notice = if (id in picks) "On the widget" else "Off the widget"
                 dev.phonerecall.widgets.WidgetBus.hestia(ctx, core.snapshot, force = true)
             },
+            routine = { id, change -> routinesDo { it.edit(id, change); runCatching { HestiaRoutines.arm(ctx) } } },
+            never = { id -> routinesDo { it.never(id) } },
+            undoRoutine = { r -> routinesDo { HestiaRoutines.undo(ctx, r.id, r.lastIds) }; notice = "Undone: ${r.name}" },
+            removeRoutine = { id -> routinesDo { HestiaRoutines.remove(ctx, id) } },
+            chat = onChat,
+            newRoutine = { onChat("New routine: when ") },
         )
     }
-    HestiaContent(s, HestiaCore.whereabouts.away(), gutter, wide, notice, calls, picks = picks.toSet())
+    HestiaContent(s, HestiaCore.whereabouts.away(), gutter, wide, notice, calls, picks = picks.toSet(), routines = routines, learned = learned)
 }
 
 @Composable
-fun HestiaContent(s: HomeSnapshot, away: Boolean?, gutter: Dp, wide: Boolean, notice: String?, calls: HestiaCalls, startOpen: String? = null, picks: Set<String> = emptySet()) {
+fun HestiaContent(
+    s: HomeSnapshot, away: Boolean?, gutter: Dp, wide: Boolean, notice: String?, calls: HestiaCalls, startOpen: String? = null, picks: Set<String> = emptySet(),
+    routines: RoutinesData? = null, learned: Map<String, List<String>> = emptyMap(), startRoutine: String? = null,
+) {
     val c = Athena.colors
     Column(Modifier.fillMaxSize()) {
         ScreenHeader(Place.DEVICES.title(), gutter, emblem = Place.DEVICES, subtitle = Place.DEVICES.subtitle()) {
@@ -106,7 +140,7 @@ fun HestiaContent(s: HomeSnapshot, away: Boolean?, gutter: Dp, wide: Boolean, no
         }
         if (notice != null) Line(notice, Type.small, c.alert, Modifier.padding(horizontal = gutter).padding(bottom = Space.s))
         when (val l = s.link) {
-            Link.Connected -> Connected(s, away, gutter, wide, calls, startOpen, picks)
+            Link.Connected -> Connected(s, away, gutter, wide, calls, startOpen, picks, routines, learned, startRoutine)
             else -> NotConnected(l, gutter, calls)
         }
     }
@@ -147,9 +181,14 @@ private fun NotConnected(l: Link, gutter: Dp, calls: HestiaCalls) {
 }
 
 @Composable
-private fun Connected(s: HomeSnapshot, away: Boolean?, gutter: Dp, wide: Boolean, calls: HestiaCalls, startOpen: String?, picks: Set<String>) {
+private fun Connected(
+    s: HomeSnapshot, away: Boolean?, gutter: Dp, wide: Boolean, calls: HestiaCalls, startOpen: String?, picks: Set<String>,
+    routines: RoutinesData?, learned: Map<String, List<String>>, startRoutine: String?,
+) {
     val c = Athena.colors
     var open by rememberSaveable { mutableStateOf(startOpen) }
+    var openRoutine by rememberSaveable { mutableStateOf(startRoutine) }
+    val never = routines?.never.orEmpty()
     val cols = if (wide) 3 else 2
     val lightsOn = s.lightsOn.size
     val groups = s.rooms.map { it.name to s.devices.filter { d -> d.roomId == it.id } } +
@@ -171,12 +210,34 @@ private fun Connected(s: HomeSnapshot, away: Boolean?, gutter: Dp, wide: Boolean
             item(key = "room-$room") { Kicker(room, Modifier.padding(top = Space.xl, bottom = Space.s)) }
             for ((i, row) in ds.chunked(cols).withIndex()) item(key = "row-$room-$i") {
                 Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min).padding(bottom = Space.s), horizontalArrangement = Arrangement.spacedBy(Space.s)) {
-                    for (d in row) Tile(d, open == d.id, d.id in picks, Modifier.weight(1f).fillMaxHeight(), onOpen = { open = if (open == d.id) null else d.id }, calls)
+                    for (d in row) Tile(d, open == d.id, d.id in picks, d.id in never, Modifier.weight(1f).fillMaxHeight(), onOpen = { open = if (open == d.id) null else d.id }, calls)
                     repeat(cols - row.size) { Spacer(Modifier.weight(1f)) }
                 }
             }
             ds.firstOrNull { it.id == open && it.controllable && it.online }?.let { d ->
                 item(key = "panel-${d.id}") { Panel(d, calls) { open = null } }
+            }
+        }
+        if (routines != null) {
+            item(key = "routines") {
+                Column(Modifier.padding(top = Space.xl)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Kicker("Routines", Modifier.weight(1f))
+                        TextAction("New by chat", calls.newRoutine)
+                    }
+                    Line("Tell Athena what you want, like \"when I get home after 9, turn on the hall light\". Each runs on its own with an Undo. Locks, messages and payments: never.", Type.small, c.ink3)
+                    if (never.isEmpty()) Line("Which plug is your computer? Mark it under Never automate below.", Type.small, c.alert, Modifier.padding(top = Space.xs))
+                }
+            }
+            for (r in routines.routines) item(key = "routine-${r.id}") {
+                RoutineRow(r, s, learned[r.id].orEmpty(), never, openRoutine == r.id, calls) { openRoutine = if (openRoutine == r.id) null else r.id }
+            }
+            item(key = "never") {
+                Column(Modifier.padding(top = Space.l)) {
+                    Kicker("Never automate", Modifier.padding(bottom = Space.xs))
+                    val ds = s.devices.filter { it.kind in RoutineRules.KINDS && it.controllable }
+                    Picks(ds.map { it.name }, ds.filter { it.id in never }.map { it.name }.toSet()) { name -> ds.firstOrNull { it.name == name }?.let { calls.never(it.id) } }
+                }
             }
         }
         if (s.automations.isNotEmpty()) {
@@ -202,7 +263,7 @@ private fun Connected(s: HomeSnapshot, away: Boolean?, gutter: Dp, wide: Boolean
 }
 
 @Composable
-private fun Tile(d: HomeDevice, opened: Boolean, picked: Boolean, modifier: Modifier, onOpen: () -> Unit, calls: HestiaCalls) {
+private fun Tile(d: HomeDevice, opened: Boolean, picked: Boolean, manual: Boolean, modifier: Modifier, onOpen: () -> Unit, calls: HestiaCalls) {
     val c = Athena.colors
     val shape = RoundedCornerShape(Radius.blockSmall)
     val lit = d.on == true && d.online && !d.kind.forbidden
@@ -218,7 +279,7 @@ private fun Tile(d: HomeDevice, opened: Boolean, picked: Boolean, modifier: Modi
             .padding(start = Space.m, end = Space.m, top = Space.m, bottom = Space.xs),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Kicker(if (picked) "${d.kind.word} · Widget" else d.kind.word, Modifier.weight(1f))
+            Kicker(listOfNotNull(d.kind.word, "Widget".takeIf { picked }, "Manual".takeIf { manual }).joinToString(" · "), Modifier.weight(1f))
             StatusWord(
                 when { !d.online -> "Offline"; d.kind.forbidden -> "Read only"; d.on == true -> "On"; d.on == false -> "Off"; else -> "-" },
                 when { !d.online -> Tone.ALERT; lit -> Tone.OK; else -> Tone.QUIET },
@@ -264,6 +325,66 @@ private fun Panel(d: HomeDevice, calls: HestiaCalls, onClose: () -> Unit) {
             Kicker("Color", Modifier.padding(top = Space.m))
             val current = d.hue?.takeIf { (d.saturation ?: 0) > 50 }?.let { h -> HomeRules.COLORS.minByOrNull { (_, v) -> minOf((v.first - h).mod(360), (h - v.first).mod(360)) }?.key }
             Words(HomeRules.COLORS.keys.toList(), current) { name -> HomeRules.COLORS.getValue(name).let { (h, sat) -> calls.send(d.id, HomeCommand.Color(h, sat)) } }
+        }
+    }
+}
+
+/** One routine: what it does in one sentence, its last run, on or off; tap for its runs. */
+@Composable
+private fun RoutineRow(r: Routine, s: HomeSnapshot, learned: List<String>, never: Set<String>, opened: Boolean, calls: HestiaCalls, onOpen: () -> Unit) {
+    val c = Athena.colors
+    Column(Modifier.fillMaxWidth()) {
+        Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable(role = Role.Button, onClick = onOpen).padding(vertical = Space.s), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Line(r.name, Type.body.copy(fontWeight = FontWeight.Medium), c.ink)
+                Line(RoutineRules.sentence(r, s, learned, never), Type.small, c.ink3, maxLines = 4)
+                r.lastRun?.let { at ->
+                    val t = java.time.Instant.ofEpochMilli(at).atZone(java.time.ZoneId.systemDefault())
+                    Line("Last ${dev.phonerecall.home.Fmt.time(t)}${r.lastWords?.let { ": $it" }.orEmpty()}", Type.caption, c.ink3, maxLines = 1)
+                }
+            }
+            Spacer(Modifier.width(Space.m))
+            Box(Modifier.heightIn(min = 44.dp).clickable(role = Role.Switch) { calls.routine(r.id) { it.copy(on = !it.on) } }, contentAlignment = Alignment.Center) {
+                StatusWord(if (r.on) "On" else "Off", if (r.on) Tone.OK else Tone.QUIET)
+            }
+        }
+        if (opened) RoutinePanel(r, calls, onOpen)
+    }
+}
+
+/** One routine opened: its last runs and skips, Undo, and the two ways to change it (by chat, or delete). */
+@Composable
+private fun RoutinePanel(r: Routine, calls: HestiaCalls, onClose: () -> Unit) {
+    val c = Athena.colors
+    val shape = RoundedCornerShape(Radius.block)
+    val zone = java.time.ZoneId.systemDefault()
+    Column(Modifier.fillMaxWidth().padding(bottom = Space.s).clip(shape).background(c.block(Tint.NEUTRAL, strong = true)).border(1.dp, c.edge, shape).padding(Space.blockPad)) {
+        Kicker("Runs")
+        if (r.history.isEmpty()) Line("It hasn't run yet.", Type.small, c.ink3, Modifier.padding(top = Space.xs))
+        for (h in r.history.takeLast(5).reversed()) {
+            val t = java.time.Instant.ofEpochMilli(h.at).atZone(zone)
+            FactRow("${java.time.format.DateTimeFormatter.ofPattern("EEE").format(t)} ${dev.phonerecall.home.Fmt.time(t)}", labelWidth = 96.dp, value = if (h.ran) h.words else "Skipped: ${h.words}")
+        }
+        Line("To change it, tell Athena in your words, like \"make that only after 10 PM\".", Type.small, c.ink3, Modifier.padding(top = Space.m))
+        Row(Modifier.padding(top = Space.s).offset(x = -Space.s)) {
+            TextAction("Edit by chat", { calls.chat("Change my \"${r.name}\" routine: ") }, emphasis = true)
+            if (r.lastIds.isNotEmpty()) TextAction("Undo last run", { calls.undoRoutine(r) })
+            TextAction("Delete", { calls.removeRoutine(r.id); onClose() })
+        }
+    }
+}
+
+/** Plain words he toggles, several at once; the chosen ones in full ink, bold and underlined. */
+@Composable
+private fun Picks(words: List<String>, chosen: Set<String>, onToggle: (String) -> Unit) {
+    val c = Athena.colors
+    FlowRow {
+        for (w in words) {
+            val on = w in chosen
+            Box(Modifier.heightIn(min = 44.dp).clickable(role = Role.Checkbox) { onToggle(w) }.padding(end = Space.l), contentAlignment = Alignment.CenterStart) {
+                Line(w, Type.action.copy(fontWeight = if (on) FontWeight.Bold else FontWeight.Normal), if (on) c.ink else c.ink2,
+                    Modifier.drawBehind { if (on) drawLine(c.accent, Offset(0f, size.height + 3.dp.toPx()), Offset(size.width, size.height + 3.dp.toPx()), 2.dp.toPx()) })
+            }
         }
     }
 }

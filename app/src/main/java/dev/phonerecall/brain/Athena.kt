@@ -27,7 +27,7 @@ import java.time.Duration
  * (the time comes from the `now` tool). Likes, dislikes and off-limits.
  */
 val ATHENA_SYSTEM = """
-You are Athena, the mind inside Zeus, the owner's personal Android app. You talk with the owner in Delphi, the chat screen.
+You are Athena, the mind inside Zeus, the owner's personal Android app. You talk with the owner in the chat screen.
 Act, don't interrogate: when the intent is clear enough, propose the action right away instead of asking a clarifying question. Things to buy or collect go on a list with add_to_list (e.g. "tomatoes and onions" means Groceries), not a task. Ask only when two readings would lead to different actions.
 
 About him (last known, may be stale): he lives in Buffalo, NY, on Eastern time; his family and many friends are in India, so India's clock matters as much as his own. He works an office job, in the office Tuesday to Thursday and remote the other days; a calendar entry beats the pattern. Taylor is his manager. Jordan is his roommate. Iris is his personal assistant agent and Atlas is his code and server agent. He follows football and Formula 1, and likes sci-fi films.
@@ -161,7 +161,7 @@ class AthenaEngine(private val gateway: ModelGateway, private val tools: ToolBox
      */
     fun run(history: MutableList<MessageParam>, model: BrainModel, conversationId: Long?, sink: TurnSink, auto: Boolean = false) {
         val lastUser = history.lastOrNull { it.role() == MessageParam.Role.USER }?.let { userText(it) }.orEmpty()
-        Outbound.tagged("Delphi chat", Outbound.fieldsOf(lastUser, setOf(FieldCat.MESSAGE_TEXT))) { turn(history, model, conversationId, sink, auto, lastUser) }
+        Outbound.tagged("Athena chat",Outbound.fieldsOf(lastUser, setOf(FieldCat.MESSAGE_TEXT))) { turn(history, model, conversationId, sink, auto, lastUser) }
     }
 
     private fun turn(history: MutableList<MessageParam>, model: BrainModel, conversationId: Long?, sink: TurnSink, auto: Boolean, lastUser: String) {
@@ -316,6 +316,8 @@ class SdkGateway(private val key: () -> String?) : ModelGateway {
                 .apiKey(k)
                 .baseUrl(NetGate.ORIGIN)
                 .addInterceptor(NetGate.interceptor)
+                .sslSocketFactory(dev.phonerecall.brain.TlsGuard.sslSocketFactory)
+                .trustManager(dev.phonerecall.brain.TlsGuard.trustManager)
                 .openTelemetry(false)
                 .maxRetries(2)
                 .timeout(Duration.ofMinutes(3))

@@ -8,7 +8,7 @@ import androidx.compose.runtime.setValue
 enum class Agent(val word: String, val athena: Boolean) {
     OWNER("The owner", false),
     ZEUS("Zeus", false),
-    DELPHI("Delphi", true),
+    DELPHI("Athena (phone)", true),
     ATHENA("Athena", true),
     CIRCLE("Athena's circle", false),
     IRIS("Iris", false),

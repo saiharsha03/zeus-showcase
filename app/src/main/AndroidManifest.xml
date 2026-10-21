@@ -5,7 +5,7 @@
     <!-- Phase 2a: the brain talks to api.anthropic.com only. Every request passes NetGate (brain/NetGate.kt),
          and network_security_config.xml trusts no other host and turns cleartext off. -->
     <uses-permission android:name="android.permission.INTERNET" />
-    <!-- Delphi's calendar proposals: write to a chosen Google calendar, only after he confirms. Asked on the card. -->
+    <!-- Athena's calendar proposals: write to a chosen Google calendar, only after he confirms. Asked on the card. -->
     <uses-permission android:name="android.permission.WRITE_CALENDAR" />
     <!-- Confirmed alarm proposals go to the clock app. -->
     <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
@@ -19,6 +19,8 @@
     <uses-permission android:name="android.permission.READ_CONTACTS" />
     <!-- Theogony: who he calls most, as labels, read once on the phone (never numbers). -->
     <uses-permission android:name="android.permission.READ_CALL_LOG" />
+    <!-- One-tap agency: a card's Call back dials directly (The owner's decision, 2026-10-20). Asked the first time he taps it. -->
+    <uses-permission android:name="android.permission.CALL_PHONE" />
     <!-- The Now Bar (a Live Update) and, later, the brain's nudges. Asked from Settings. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Android 16: lets the Now Bar notification be promoted to the status-bar chip and lock screen. -->
@@ -100,6 +102,19 @@
         <!-- Rhythms: WhatsApp for the call nudge, and launcher apps' names ("Chess Arena") for learned habits. -->
         <package android:name="com.whatsapp" />
         <intent><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent>
+        <!-- Olympia's Watch button: exactly the streaming apps in olympia/Watch.kt (Service). -->
+        <package android:name="com.cbs.app" />
+        <package android:name="com.espn.score_center" />
+        <package android:name="com.disney.disneyplus" />
+        <package android:name="com.peacocktv.peacockandroid" />
+        <package android:name="com.netflix.mediaclient" />
+        <package android:name="com.amazon.avod.thirdpartyclient" />
+        <package android:name="com.apple.atve.androidtv.appletv" />
+        <package android:name="com.google.android.apps.youtube.unplugged" />
+        <package android:name="com.fox.foxone" />
+        <package android:name="com.foxsports.android" />
+        <package android:name="tv.willow" />
+        <package android:name="in.startv.hotstar" />
     </queries>
 
     <application
@@ -215,6 +230,7 @@
              notification's buttons, and re-registering geofences after a restart. -->
         <receiver android:name=".places.GeofenceReceiver" android:exported="false" />
         <receiver android:name=".places.ArrivalActionReceiver" android:exported="false" />
+        <receiver android:name=".hestia.RoutineReceiver" android:exported="false" />
         <receiver android:name=".moneta.MonetaActionReceiver" android:exported="false" />
         <receiver android:name=".places.PlacesBootReceiver" android:exported="false">
             <intent-filter>
@@ -366,7 +382,7 @@
             <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/agora_widget_info" />
         </receiver>
-        <receiver android:name=".widgets.DelphiWidget" android:exported="false" android:label="Delphi">
+        <receiver android:name=".widgets.DelphiWidget" android:exported="false" android:label="Ask Athena">
             <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/delphi_widget_info" />
         </receiver>
@@ -434,6 +450,42 @@
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>
+        <!-- Small touches (qol/): Hide on the parked chip, Undo on the car's music, the street parking alarm (re-armed after a restart). -->
+        <receiver android:name=".qol.QolReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+        <!-- Small touches (qol2/): the quick timers' alarm and re-arming after a restart. -->
+        <receiver android:name=".qol2.TouchReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+        <!-- Small touches: audio dropping while music played. Sent by the Bluetooth stack, so exported; senders must hold BLUETOOTH_CONNECT. -->
+        <receiver android:name=".qol2.TouchAudioReceiver" android:exported="true" android:permission="android.permission.BLUETOOTH_CONNECT">
+            <intent-filter>
+                <action android:name="android.bluetooth.device.action.ACL_DISCONNECTED" />
+            </intent-filter>
+        </receiver>
+        <!-- Small touches: the settings and the two pickers (photos for family, a receipt for Drive). -->
+        <activity android:name=".qol2.TouchesActivity" android:exported="false" android:theme="@style/Theme.Athena" />
+        <!-- "Read later" in the share sheet: a link to the Read later pocket, "X has my Y" to Borrowed. No screen. -->
+        <activity
+            android:name=".qol2.TouchShareActivity"
+            android:exported="true"
+            android:label="Read later"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+        </activity>
         <!-- Rhythms: the call nudge's one alarm, Later and Not today, re-arming after a restart. -->
         <receiver android:name=".rhythms.RhythmsReceiver" android:exported="false">
             <intent-filter>

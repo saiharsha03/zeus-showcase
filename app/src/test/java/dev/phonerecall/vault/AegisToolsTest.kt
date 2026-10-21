@@ -35,7 +35,7 @@ class AegisToolsTest {
         assertFalse(out.isError)
         assertEquals("12 Elm St, Springfield", jsonMapper().readTree(out.text)["value"].asText())
         val row = r.aegis.log().first()
-        assertEquals(listOf("Delphi", "used", "delivery_address", "Costco order", r.now), listOf(row.who, row.action, row.item, row.why, row.at))
+        assertEquals(listOf("Athena (phone)", "used", "delivery_address", "Costco order", r.now), listOf(row.who, row.action, row.item, row.why, row.at))
         assertEquals(1, r.aegis.items().single().uses)
     }
 

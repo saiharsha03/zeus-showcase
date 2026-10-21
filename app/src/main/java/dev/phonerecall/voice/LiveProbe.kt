@@ -3,6 +3,7 @@ package dev.phonerecall.voice
 import android.content.Context
 import dev.phonerecall.brain.KeyVault
 import dev.phonerecall.brain.NetGate
+import dev.phonerecall.brain.TlsGuard
 import dev.phonerecall.brain.ToolOutcome
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.delay
@@ -44,7 +45,7 @@ object LiveProbe {
         val spoke = AtomicLong(0)
         val done = CompletableDeferred<String>()
         NetGate.liveOpen = true
-        val client = OkHttpClient.Builder().addInterceptor(NetGate.okHttp).readTimeout(0, TimeUnit.MILLISECONDS).build()
+        val client = OkHttpClient.Builder().sslSocketFactory(TlsGuard.sslSocketFactory, TlsGuard.trustManager).addInterceptor(NetGate.okHttp).readTimeout(0, TimeUnit.MILLISECONDS).build()
         var socket: WebSocket? = null
         fun send(ws: WebSocket, frame: String) { if (guard.clean(frame)) ws.send(frame) else done.completeExceptionally(LiveCheckFailed("Stopped: a frame held a key")) }
         val listener = object : WebSocketListener() {

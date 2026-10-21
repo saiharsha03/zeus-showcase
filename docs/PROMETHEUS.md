@@ -33,6 +33,45 @@ docs/ZEUS-GATEWAY.md, "Prometheus") still works: Prometheus's screen has a Cloud
    certificate set, not older). Only then "Install v1.8.x", which hands the file to Android's installer;
    Android asks the owner to confirm.
 
+## Clio evidence
+
+Design: Prometheus gets the phone's evidence without the owner copying logs.
+
+- **Stacks with every request.** Clio's `crash` (ANRs and uncaught exceptions) and `ui` (main-thread watchdog
+  stalls) entries from the last 48 hours go with each request, newest first, at most 8 and 60,000 characters.
+  Each is cut to code: frames, locks, thread states, exception class names (never their messages), plus its
+  time (UTC), area, level and event. Then the Sanitizer runs again. Built by `ClioEvidence.attachment`.
+- **read_clio.** A custom tool on Prometheus's agent only (Athena and her circle never get it):
+  `{area?, level? (lowest), from?, to? (ISO-8601, UTC; default the last 48 h, at most 14 days back), query?, limit<=500}`.
+  The phone answers it on the progress poll (every 30 s while the page is open, and on Refresh), so a call waits
+  until he opens Prometheus. Read-only, newest first, stacks as frames, every line sanitized again, 60,000
+  characters at most. Refused once the request is merged, closed, stopped or failed. `places`, `odyssey`
+  (a location trail), `chronos` (birthdays, names) and `device` (app minutes, car) never leave the phone.
+  Every call is a Clio line (`prometheus` / `read_clio`), a line in Prometheus's log, and a row in What left the phone.
+- **Send to Prometheus from Clio.** A crash or ui entry in Clio has "Send to Prometheus": it opens the request
+  sheet with "Fix: <event> at <first of our frames>" and that entry attached (even when older than 48 hours).
+  He edits it and taps Send; nothing is sent without that tap. Merge and release stay fingerprint-gated.
+
+## Assess: "is this feasible?"
+
+Design: Athena can ask Prometheus whether something can be built before anyone builds it.
+
+- **Who asks.** Athena only, with `ask_prometheus {kind: "assess", title, need, context}` (her circle is refused, a
+  shakedown is refused, any other kind is refused). The text passes the Sanitizer first. It returns at once with an id.
+- **The look.** A separate agent, "Zeus · Prometheus (assess)", with read, glob and grep only (no bash, write or
+  edit), no vault (no GH_TOKEN), no branch, no PR. Its model is Horologion's "Prometheus, assessments" (Sonnet 5.5 by
+  default). One session per ask, at most 25 cents (less if the month's cap has less left). It answers with one JSON
+  object: feasible (yes, no, partly), approach (3 to 5 lines), files likely touched, risk, needs (a permission, host,
+  credential or decision for the owner, or none), done when.
+- **The result.** The phone checks on Athena's sync (every 30 minutes by default) and whenever Prometheus's page polls,
+  until it's done or an hour has passed (Prometheus itself schedules nothing).
+  Then it posts the result in Agora, gives it to Athena as a note, and, when feasible is yes or partly, parks one Fates
+  card "Build: <title>" (kind build_app, tier 3, never automatic, no model can propose it directly). The card shows the
+  need, approach, files, risk, needs and done when.
+- **Build.** Only his Confirm on that card sends the normal build request (title, need, approach, files, done when
+  prefilled). From there it is the flow above: a PR, CI, and merge and release behind his fingerprint. Reject, or
+  letting the card expire (7 days), sends nothing.
+
 ## Guardrails
 
 - **Two tokens.** `github` (Prometheus's) goes to Anthropic only: as the session's repository
@@ -84,6 +123,8 @@ No `GOOGLE_SERVICES_JSON` is needed: the build has no google-services plugin.
 - `.github/workflows/ci.yml`, `.github/workflows/release.yml`
 - `app/src/main/java/dev/phonerecall/prometheus/Cloud.kt`: stages, the state machine, release and install checks, prompts, Forge
 - `prometheus/GitHub.kt`: the phone's GitHub client
+- `prometheus/ClioEvidence.kt`: the stack attachment, read_clio, the Clio draft
+- `prometheus/Assess.kt`: assess mode (prompt, parsing, the Build card); checked from `MindSyncWorker`
 - `mind/SdkMindApi.kt`: the Managed Agents calls (ForgeApi)
 - `prometheus/PrometheusCore.kt`, `PrometheusScreen.kt`: the taps and the cards
-- Tests: `app/src/test/java/dev/phonerecall/prometheus/CloudTest.kt`, `brain/NetGateTest.kt`
+- Tests: `app/src/test/java/dev/phonerecall/prometheus/CloudTest.kt`, `ClioEvidenceTest.kt`, `AssessTest.kt`, `brain/NetGateTest.kt`

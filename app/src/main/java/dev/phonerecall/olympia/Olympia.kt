@@ -77,7 +77,7 @@ object Olympia {
         val matches = s.followed
         val streaming = s.settings.alerts == Alerts.KEY || s.settings.alerts == Alerts.QUIET
         if (streaming && MatchDay.liveNow(matches, now).isNotEmpty()) LiveService.start(c)
-        val at = if (streaming) MatchDay.nextWake(matches, now) else ResultCheck.next(matches, now)
+        val at = listOfNotNull(if (streaming) MatchDay.nextWake(matches, now) else ResultCheck.next(matches, now), Watch.nextWake(matches, now)).minOrNull()
         if (at == null) { am.cancel(alarmIntent(c)); return }
         if (am.canScheduleExactAlarms()) am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, alarmIntent(c))
         else am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, alarmIntent(c))
@@ -146,6 +146,8 @@ class MatchDayReceiver : BroadcastReceiver() {
                 }
                 Olympia.arm(c, now)
                 LiveWidget.update(c)
+                // Half an hour before a match the Now Bar picks up the Watch chip.
+                runCatching { dev.phonerecall.nowbar.NowBar.refreshFromDisk(c) }
             } finally { pending.finish() }
         }
     }
@@ -170,7 +172,7 @@ class LiveService : Service() {
         val first = MatchDay.headline(s.followed, now)
         val text = first?.let { m -> s.live[m.id]?.takeIf { m.phase == Phase.LIVE }?.let(NoticeWords::of) ?: NoticeWords.before(m, ZonedDateTime.now()) }
             ?: NoticeText("Olympia", "Match day", "Waiting for kickoff", null, null)
-        val n = LiveNotice.build(this, text, sound = false, countdownTo = first?.start?.takeIf { it > now })
+        val n = LiveNotice.build(this, text, sound = false, countdownTo = first?.start?.takeIf { it > now }, watch = runCatching { WatchApps.pending(this, first) }.getOrNull())
         ServiceCompat.startForeground(this, LiveNotice.ID, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
         if (loop?.isActive != true) loop = scope.launch { run() }
         return START_NOT_STICKY
@@ -181,6 +183,9 @@ class LiveService : Service() {
         val last = HashMap<String, Long>()
         val polls = HashMap<String, Int>()
         val done = HashSet<String>()
+        // The Watch button is worked out once per headline match, not on every poll.
+        var watchFor: String? = null
+        var watchButton: android.app.PendingIntent? = null
         while (scope.isActive) {
             val now = System.currentTimeMillis()
             val s = OlympiaStore.load(this)
@@ -200,11 +205,14 @@ class LiveService : Service() {
                 sounds += Moments.alerting(fresh, s.settings.alerts).filter { !it.final }
                 fresh.lastOrNull { it.final }?.let { LiveNotice.result(this, live.match, it.text, silent = s.settings.alerts == Alerts.QUIET) }
                 if (live.match.phase == Phase.DONE || live.match.phase == Phase.OFF) done += m.id
+                // Kickoff is a trigger for learned shortcuts (Paramount+ when Barca plays); the book counts one an hour.
+                if (live.match.phase == Phase.LIVE && n == 0) for (t in live.match.teams) dev.phonerecall.shortcuts.ShortcutsCore.trigger(this, "match:$t", "a ${Teams.all.firstOrNull { it.key == t }?.name ?: t} match starts")
             }
             val state = OlympiaStore.load(this)
             val head = MatchDay.headline(state.followed.filter { it.id !in done }, now)
             val live = head?.let { state.live[it.id] }
-            val quiet = QuietHours.quiet(ZonedDateTime.now())
+            // Quiet hours, a call or a drive: the score still updates, without a sound.
+            val quiet = QuietHours.quiet(ZonedDateTime.now()) || (sounds.isNotEmpty() && !WatchApps.quiet(this).buzz)
             val text = when {
                 head == null -> null
                 live != null && live.match.phase == Phase.LIVE -> NoticeWords.of(live)
@@ -212,7 +220,8 @@ class LiveService : Service() {
             }
             if (text != null) {
                 val withMoment = sounds.lastOrNull()?.let { text.copy(text = listOf(text.text.substringBefore(" · "), it.text).filter { s -> s.isNotEmpty() }.joinToString(" · ")) } ?: text
-                LiveNotice.post(this, LiveNotice.build(this, withMoment, sound = sounds.isNotEmpty() && !quiet, countdownTo = head?.start?.takeIf { it > now }))
+                if (head?.id != watchFor) { watchFor = head?.id; watchButton = runCatching { WatchApps.pending(this, head) }.getOrNull() }
+                LiveNotice.post(this, LiveNotice.build(this, withMoment, sound = sounds.isNotEmpty() && !quiet, countdownTo = head?.start?.takeIf { it > now }, watch = watchButton))
             }
             LiveWidget.update(this)
             val next = MatchDay.liveNow(state.followed, now).filter { it.id !in done }.minOfOrNull { MatchDay.due(it, last[it.id], now) } ?: break

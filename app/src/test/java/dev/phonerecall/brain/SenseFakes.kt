@@ -47,6 +47,24 @@ class FakeEffects : SenseEffects {
     /** Metron's routing rule, faked: what workerHold answers for a worker. */
     var hold: (String) -> String? = { null }
     override fun workerHold(worker: String) = hold(worker)
+    /** Card key to the notification key whose buttons it shows. */
+    val links = LinkedHashMap<String, String>()
+    val codes = ArrayList<String>()
+    override fun showsActions(card: String, note: String) { links[card] = note }
+    override fun code(n: Incoming) { codes += n.key }
+    /** He is in the game a message names. */
+    var playing = false
+    override fun inGame(text: String) = playing
+    val wishes = ArrayList<String>()
+    val learned = ArrayList<String>()
+    override fun wish(thread: String, name: String, note: String) { wishes += name }
+    override fun wishLearned(thread: String, text: String, name: String) { learned += text }
+    val derivedLines = ArrayList<String>()
+    override fun derived(key: String, line: String, high: Boolean) { derivedLines += (if (high) "!" else "") + line }
+    var own = listOf<OwnConsent>()
+    override fun consents() = own
+    var apps = listOf<String>()
+    override fun knownApps() = apps
 }
 
 /** A model that records every prompt it was given and answers from a script. */

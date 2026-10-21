@@ -179,7 +179,7 @@ class ShakedownTest {
 
     @Test fun summaryAndComparison() {
         assertEquals(
-            "45 of 50 passed; Iris: Asked; no answer in 85 s; Odyssey: No TomTom key in Calypso; Spotify: Spotify isn't connected; 2 skipped.",
+            "46 of 51 passed; Iris: Asked; no answer in 85 s; Odyssey: No TomTom key in Calypso; Spotify: Spotify isn't connected; 2 skipped.",
             Shakedown.summary(ShakeFixtures.results),
         )
         assertEquals("1 of 1 passed; Stopped by you.", Shakedown.summary(listOf(ShakeResult("a", Verdict.PASS)), "Stopped by you"))

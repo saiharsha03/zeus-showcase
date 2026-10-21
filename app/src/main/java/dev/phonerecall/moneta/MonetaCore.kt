@@ -91,6 +91,7 @@ class MonetaCore private constructor(private val app: Context) {
         val (row, folded) = Reconcile.insert(store, ops, t)
         if (folded) Clio.info("moneta", "folded a ${t.via?.word ?: "bank"} alert", t.bank.orEmpty())
         reload()
+        changed()
         // A second alert for a purchase already seen asks nothing new.
         if (folded) return@bg
         val s = _state.value
@@ -120,8 +121,8 @@ class MonetaCore private constructor(private val app: Context) {
     fun settle(key: String) = bg { MonetaFlags.settle(store, key); reload() }
 
     /** His own edits take the same path as Iris's: applied at once, logged, undoable. */
-    fun edit(op: MonetaOp) = bg { runCatching { ops.apply(op, MonetaOps.WHO_OWNER) }; reload() }
-    fun undo(change: MonetaChange) = bg { ops.undo(change.id); reload() }
+    fun edit(op: MonetaOp) = bg { runCatching { ops.apply(op, MonetaOps.WHO_OWNER) }; reload(); changed() }
+    fun undo(change: MonetaChange) = bg { ops.undo(change.id); reload(); changed() }
     fun dismiss(u: Unusual) = bg { store.dismiss(u.key); reload() }
     fun dismissKey(key: String) = bg { store.dismiss(key); reload() }
 
@@ -139,8 +140,8 @@ class MonetaCore private constructor(private val app: Context) {
         if (!DeviceKeys.paired(app)) return
         val zone = ZoneId.systemDefault()
         val now = System.currentTimeMillis()
+        val full = now - store.long(FULL) > Ledger.FULL_EVERY
         val r = runCatching {
-            val full = now - store.long(FULL) > Ledger.FULL_EVERY
             var since = if (full) 0L else store.long(CURSOR)
             val rows = ArrayList<Txn>()
             var subs: List<Subscription>? = null
@@ -149,16 +150,42 @@ class MonetaCore private constructor(private val app: Context) {
                 rows += p.rows; subs = p.subs; since = p.next
                 if (!p.more) break
             }
-            Ledger.merge(store, rows, full)?.let { store.logChange(now, MonetaOps.WHO_IRIS, "her log: $it", null) }
+            Ledger.merge(store, rows, full)?.let { store.logChange(now, MonetaOps.WHO_IRIS, "her log: $it", null); store.setLong(DIRTY, 1) }
             subs?.let { store.saveIrisSubs(it) }
             store.setLong(CURSOR, since)
             if (full) store.setLong(FULL, now)
             val envs = Gateway.monetaOps()
-            if (envs.isNotEmpty()) Gateway.monetaAck(ops.applyEnvelopes(envs))
+            if (envs.isNotEmpty()) { Gateway.monetaAck(ops.applyEnvelopes(envs)); store.setLong(DIRTY, 1) }
             store.setLong(SYNCED, now)
         }
         _state.value = _state.value.copy(irisError = r.exceptionOrNull()?.let { "Iris's log didn't come: ${it.message ?: it.javaClass.simpleName}" })
         reload()
+        publish(full && r.isSuccess)
+    }
+
+    /** Something in Moneta changed: Iris's view goes out once the last one is 10 minutes old (after this task). */
+    private fun changed() {
+        store.setLong(DIRTY, 1)
+        bg { publish(false) }
+    }
+
+    /**
+     * Moneta's view for Iris ([MonetaView]) through Lemnos: after a change at most every 10 minutes, and on the daily
+     * full read. Runs on Moneta's thread; a failure waits for the next change or sync.
+     */
+    private fun publish(full: Boolean) {
+        val now = System.currentTimeMillis()
+        if (!DeviceKeys.paired(app) || !MonetaView.due(store.long(DIRTY) != 0L, store.long(VIEWED), now, full)) return
+        runCatching {
+            val zone = ZoneId.systemDefault()
+            val txns = store.txns(now - 120 * DAY)
+            val flagged = Money.unusual(txns, now, zone, store.dismissed(), known = store.known(), travelling = { MonetaHooks.trips?.tripAt(it) != null })
+                .filter { it.fraud }.map { it.txn.ref }.toSet()
+            Gateway.monetaView(MonetaView.build(txns, subscriptions(), store.budgets(), flagged, now, zone))
+        }.onSuccess { n ->
+            store.setLong(VIEWED, now); store.setLong(DIRTY, 0)
+            Clio.info("moneta", "shared Moneta with Iris", "$n rows")
+        }.onFailure { Clio.error("moneta", it) }
     }
 
     /** Every subscription he has, with the next renewal (seen on his cards, Iris's, added). */
@@ -170,6 +197,8 @@ class MonetaCore private constructor(private val app: Context) {
         private const val CURSOR = "ledger.cursor"
         private const val FULL = "ledger.full"
         private const val SYNCED = "ledger.synced"
+        private const val VIEWED = "view.published"
+        private const val DIRTY = "view.dirty"
         @Volatile private var instance: MonetaCore? = null
         fun get(context: Context): MonetaCore = instance ?: synchronized(this) {
             instance ?: MonetaCore(context.applicationContext).also { instance = it }

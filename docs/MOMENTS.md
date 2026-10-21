@@ -22,7 +22,7 @@ proposal (proposer "Kairos"). Only Fates.confirm, or a kind the owner put on aut
   (through NetGate and the spend cap), and the same rules read those.
 - **Recipe on screen:** when the assist sheet's screen text looks like a recipe, it offers "Timers for these steps"
   (back to back). Read on the phone; nothing is sent.
-- **Spoken or typed:** Delphi's `suggest_timers(text)` covers cooking, laundry, tea and workouts. Without a length it
+- **Spoken or typed:** Athena's `suggest_timers(text)` covers cooking, laundry, tea and workouts. Without a length it
   uses a small table of common items, labelled "(a guess)", or asks him how long.
 - **Dinner from the freezer:** a frozen or bake item in a receipt or order notification (name only), while he's at
   home between 5 and 9 PM, shows "Frozen pizza tonight? 425°F · 16–20 min" with Use guess / Snap / Later / Never.

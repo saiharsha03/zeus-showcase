@@ -186,6 +186,7 @@ object Places {
         val started = System.currentTimeMillis()
         val store = PlaceStore(c)
         val p = store.all().firstOrNull { it.id == placeId } ?: return
+        runCatching { dev.phonerecall.odyssey.Odyssey.pinEvent(c, dev.phonerecall.odyssey.Pin(p.name, p.lat, p.lng, p.radius), left = false) }
         store.setCurrent(p.id)
         val core = BrainCore.get(c)
         val lists = lists(core, p)
@@ -198,13 +199,19 @@ object Places {
         // The brain gets "near <store>" and how much is on the list, nothing about where he is.
         core.mindHost.offer(MindNote(System.currentTimeMillis(), "Near ${p.name} (a store he named). ${lists.values.sumOf { it.size }} open items on ${lists.keys.joinToString(", ").ifEmpty { "no lists" }}.", key = "near"))
         core.audit.log("Zeus", "arrival", "${p.name}, text by $by")
+        dev.phonerecall.shortcuts.ShortcutsCore.trigger(c, "arrive:${p.id}", "you get to ${p.name}")
+        dev.phonerecall.hestia.HestiaRoutines.event(c, dev.phonerecall.hestia.Moment.ARRIVE, p.name.lowercase())
         dev.phonerecall.clio.Clio.info(dev.phonerecall.clio.DeviceLog.PLACES, dev.phonerecall.clio.DeviceLog.ARRIVED, p.name)
         WakeLog.add(core.mindKv, Wakeup(started, "geofence enter ($by)", System.currentTimeMillis() - started, if (by == "haiku") 1 else 0))
     }
 
     fun left(c: Context, placeId: String) {
         val store = PlaceStore(c)
-        store.all().firstOrNull { it.id == placeId }?.let { dev.phonerecall.clio.Clio.info(dev.phonerecall.clio.DeviceLog.PLACES, dev.phonerecall.clio.DeviceLog.LEFT, it.name) }
+        store.all().firstOrNull { it.id == placeId }?.let { p -> runCatching { dev.phonerecall.odyssey.Odyssey.pinEvent(c, dev.phonerecall.odyssey.Pin(p.name, p.lat, p.lng, p.radius), left = true) } }
+        store.all().firstOrNull { it.id == placeId }?.let {
+            dev.phonerecall.clio.Clio.info(dev.phonerecall.clio.DeviceLog.PLACES, dev.phonerecall.clio.DeviceLog.LEFT, it.name)
+            dev.phonerecall.hestia.HestiaRoutines.event(c, dev.phonerecall.hestia.Moment.LEAVE, it.name.lowercase())
+        }
         if (store.current() == placeId) store.setCurrent(null)
         ListWidget.update(c)
         WakeLog.add(BrainCore.get(c).mindKv, Wakeup(System.currentTimeMillis(), "geofence exit", 0, 0))
@@ -255,7 +262,7 @@ class ArrivalActionReceiver : BroadcastReceiver() {
 class PlacesBootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val pending = goAsync()
-        Thread { try { Places.register(context) } finally { pending.finish() } }.start()
+        Thread { try { Places.register(context); runCatching { dev.phonerecall.hestia.HestiaRoutines.arm(context) } } finally { pending.finish() } }.start()
     }
 }
 

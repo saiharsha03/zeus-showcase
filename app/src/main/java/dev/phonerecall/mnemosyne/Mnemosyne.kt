@@ -74,7 +74,8 @@ class KeystoreBank : SealerBank {
     override fun aliases(): List<String> = runCatching {
         KeyStore.getInstance("AndroidKeyStore").apply { load(null) }.aliases().toList().filter { it.startsWith("zeus.aegis.") }.sorted()
     }.getOrDefault(emptyList())
-    override fun sealer(alias: String): Sealer = synchronized(cache) { cache.getOrPut(alias) { KeystoreSealer(alias) } }
+    // Each alias seals the way its owner does: Calypso's vault stays Keystore-direct, the rest use envelopes.
+    override fun sealer(alias: String): Sealer = synchronized(cache) { cache.getOrPut(alias) { KeystoreSealer(alias, envelope = alias != dev.phonerecall.vault.VaultCore.ALIAS) } }
 }
 
 /**
@@ -98,6 +99,9 @@ object Mnemosyne {
 
     fun isSetUp(c: Context) = sp(c).getBoolean("on", false) && sp(c).contains("key")
 
+    /** When the current phrase was set (the fresh start asks for a new one). */
+    fun setUpAt(c: Context): Long? = sp(c).getLong("since", 0L).takeIf { it > 0 }
+
     // ---- set-up ----
 
     /** Step 1: a fresh phrase, in memory only until [finishSetup]. */
@@ -111,7 +115,9 @@ object Mnemosyne {
         val key = Keys.backupKey(entropy)
         val pair = Escrow.newPair(Keys.escrowKey(entropy))
         val phraseCt = Escrow.wrap(KeystoreBoxKeys(PHRASE_ALIAS).publicKey(), entropy)
-        sp(c).edit()
+        // A new phrase is a new escrow pair: items wrapped for the old one are escrowed again from Calypso's page.
+        val old = sp(c).all.keys.filter { it.startsWith("esc.item.") }
+        sp(c).edit().apply { old.forEach { remove(it) } }
             .putBoolean("on", true)
             .putString("key", b64(KeystoreSealer(KEY_ALIAS).sealBytes(key)))
             .putString("phrase", b64(phraseCt))
@@ -349,7 +355,9 @@ class MnemosyneWorker(c: Context, p: WorkerParameters) : CoroutineWorker(c, p) {
 class RestoreGate : ContentProvider() {
     override fun onCreate(): Boolean {
         val c = context ?: return true
-        runCatching { if (Stage.apply(Layout(c))) android.util.Log.i("Mnemosyne", "restore applied") }.onFailure { android.util.Log.e("Mnemosyne", "restore failed", it) }
+        val restored = runCatching { Stage.apply(Layout(c)).also { if (it) android.util.Log.i("Mnemosyne", "restore applied") } }.onFailure { android.util.Log.e("Mnemosyne", "restore failed", it) }.getOrDefault(false)
+        // The fresh start: once per version, before any store opens (a restore just moved in is never wiped).
+        runCatching { dev.phonerecall.fresh.FreshStart.gate(c, restored) }.onFailure { android.util.Log.e("Zeus", "fresh start failed", it) }
         runCatching { Mnemosyne.installTap(c) }
         return true
     }

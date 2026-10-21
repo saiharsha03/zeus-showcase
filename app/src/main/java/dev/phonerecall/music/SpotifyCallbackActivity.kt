@@ -13,6 +13,7 @@ import dev.phonerecall.MainActivity
 object SpotifySignIn {
     fun start(context: Context) {
         Thread {
+            dev.phonerecall.brain.ConsentLog.record(context, dev.phonerecall.brain.Consent.SPOTIFY)
             val url = MusicCore.get(context).auth.begin()
             android.os.Handler(android.os.Looper.getMainLooper()).post {
                 CustomTabsIntent.Builder().setShowTitle(true).build().launchUrl(context, Uri.parse(url))
@@ -34,6 +35,7 @@ class SpotifyCallbackActivity : Activity() {
         val app = applicationContext
         Thread {
             val problem = MusicCore.get(app).finishSignIn(data)
+            if (problem == null) dev.phonerecall.brain.ConsentLog.record(app, dev.phonerecall.brain.Consent.SPOTIFY)
             runOnUiThread {
                 // App Remote's own consent can come back here with no sign-in of ours waiting: stay quiet then.
                 if (problem != NO_SIGN_IN) Toast.makeText(app, problem ?: "Spotify connected", Toast.LENGTH_SHORT).show()
