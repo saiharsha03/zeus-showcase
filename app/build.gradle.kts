@@ -129,7 +129,7 @@ dependencies {
     // Batched triage and task hygiene in the background. No foreground service.
     implementation("androidx.work:work-runtime-ktx:2.10.1")
     // Phase 2c: store-arrival geofences. Fused location runs inside Google Play services; only "near store X" leaves the phone.
-    implementation("com.google.android.gms:play-services-location:21.3.0")
+    implementation("com.google.android.gms:play-services-location:21.4.0")
     // Phase 2c: Alexandria's embeddings (EmbeddingGemma 2 through MediaPipe, as PhoneRecall). Used only when the model file is on the phone.
     implementation("com.google.mediapipe:tasks-retrieval:1.1.0")
     // Phase 3: Lemnos (the VPS) over mTLS with a Keystore key, and Hetzner's API. OkHttp is already inside the
