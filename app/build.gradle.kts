@@ -141,7 +141,7 @@ dependencies {
     // Music: Spotify App Remote 0.8.0, the official AAR from github.com/spotify/android-sdk (release
     // v0.8.0-appremote_v2.1.0-auth, fetched and hash-checked above). IPC to the Spotify app; its default JSON mapper is Gson.
     implementation(files(spotifyAar))
-    implementation("com.google.code.gson:gson:2.11.0")
+    implementation("com.google.code.gson:gson:2.14.0")
     // Spotify's PKCE sign-in page in a Custom Tab (the browser's process).
     implementation("androidx.browser:browser:1.8.0")
     // Iaso: Health Connect (Samsung Health syncs the Galaxy Watch into it). 1.1.0-beta01 is the last release
