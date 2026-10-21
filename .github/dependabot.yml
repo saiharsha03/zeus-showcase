@@ -1,3 +1,5 @@
+# The app and server follow the private repo (its Dependabot), so here only security updates open PRs for them;
+# the workflows are the showcase's own and keep weekly updates.
 version: 2
 updates:
   - package-ecosystem: gradle
@@ -5,7 +7,7 @@ updates:
     schedule:
       interval: weekly
       day: monday
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 0
     groups:
       androidx:
         patterns: ["androidx.*"]
@@ -17,7 +19,7 @@ updates:
     schedule:
       interval: weekly
       day: monday
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 0
 
   - package-ecosystem: github-actions
     directory: "/"
