@@ -1,5 +1,10 @@
 # Zeus
 
+[![CI](https://github.com/saiharsha03/zeus-showcase/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/saiharsha03/zeus-showcase/actions/workflows/ci.yml)
+[![Server tests](https://github.com/saiharsha03/zeus-showcase/actions/workflows/server.yml/badge.svg?branch=main)](https://github.com/saiharsha03/zeus-showcase/actions/workflows/server.yml)
+[![CodeQL](https://github.com/saiharsha03/zeus-showcase/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/saiharsha03/zeus-showcase/actions/workflows/codeql.yml)
+[![Latest release](https://img.shields.io/github/v/release/saiharsha03/zeus-showcase?include_prereleases&sort=semver)](https://github.com/saiharsha03/zeus-showcase/releases/latest)
+
 A personal Android assistant and control center for a single owner, plus the small server it talks to. Built by Harsha.
 
 This repository is a public showcase copy of a private app. Personal data, hosts, accounts and keys were replaced with
@@ -145,26 +150,35 @@ flowchart LR
 - **Known limit.** If the agents' server user keeps passwordless sudo, the gateway's user split is not yet a hard
   boundary.
 
-## CI/CD and Prometheus
+## CI/CD
 
-- **CI** (`.github/workflows/ci.yml`) builds the debug APK and runs every unit test on each pull request and on `main`.
-  It needs no secrets.
-- **Release** (`.github/workflows/release.yml`) runs only on `workflow_dispatch` with a commit sha on `main`. It checks
-  the commit is on `main`, refuses an already-released version, decodes the signing keystore, builds and tests, verifies
-  the APK's signer, and publishes a GitHub Release `v<versionName>` with the APK, its SHA-256 and the commit list.
-  Setup:
-  - Create an environment named `release` whose deployment branch policy allows `main` only.
-  - Add the secret `DEBUG_KEYSTORE` to it: `base64 -w0 ~/.android/debug.keystore` (alias `androiddebugkey`, store
-    password `android`). The installed app and every update must share this key.
-  - `GITHUB_TOKEN` (automatic) publishes the release.
-- **Prometheus** (`prometheus/`, `docs/PROMETHEUS.md`). From the phone you describe a bug; the phone creates a Claude
-  Managed Agent session with this repo mounted, a per-request budget and GitHub-only networking. The agent works on
-  `prometheus/<id>`, bumps the version and opens a PR; CI tests it. After a fingerprint, the phone merges the exact
-  tested head and dispatches `release.yml` with a separate phone-only token. The phone then accepts the Release only
-  if `github-actions[bot]` published it for that merge commit, the asset digest matches, and the APK's signer matches
-  the installed app; Android's installer asks for a final confirm. Prometheus's own token has no Actions or Workflows
-  permission, so it can't release or change workflows. On a private repo on GitHub's free plan, environment reviewers
-  and branch protection are unavailable; on a public repo, turn them on.
+All workflows pin every action to a full commit SHA (with the version in a comment), set `permissions: {}` at the top
+and grant each job only what it needs, and use a concurrency group per ref.
+
+| Workflow | Runs on | What it does |
+|---|---|---|
+| `ci.yml` | pull requests, `main` | Builds the debug APK and runs the unit tests (`assembleDebug testDebugUnitTest`), writes a pass/fail table to the job summary, uploads the test reports and the APK. A second job runs Android lint and publishes its report (report-only for now). |
+| `server.yml` | changes under `server/` | Installs `server/requirements.txt` on Python 3.12 (Linux) and runs the gateway's pytest suite, with a job summary and JUnit results. |
+| `codeql.yml` | pull requests, `main`, weekly | CodeQL `security-and-quality` for Kotlin/Java (traced Gradle build), Python and the workflows themselves. |
+| `release.yml` | `v*` tags | Builds and tests, re-signs the APK with a throwaway key generated inside the job (deleted after use), checks the signature, and publishes a GitHub Release with `zeus-demo-<tag>.apk`, its SHA-256 and generated notes. |
+| `dependabot.yml` | weekly | Update PRs for Gradle, pip (`server/`) and GitHub Actions, grouped. |
+
+No workflow needs a repository secret. To cut a demo release: bump `versionName`/`versionCode` in
+`app/build.gradle.kts`, then `git tag v2.0.1 && git push origin v2.0.1`.
+
+The demo APK is for trying the app. It is not signed with the owner's key, so it can't update a real install, and the
+placeholders (Firebase, gateway host) are not filled in.
+
+### Prometheus: the self-update agent
+
+`prometheus/` and `docs/PROMETHEUS.md` describe how the private app updates itself. From the phone you describe a bug;
+the phone creates a Claude Managed Agent session with the repo mounted, a per-request budget and GitHub-only
+networking. The agent works on `prometheus/<id>`, bumps the version and opens a PR; CI tests it. After a fingerprint,
+the phone merges the exact tested head and dispatches a release workflow with a separate phone-only token. It accepts
+the Release only if `github-actions[bot]` published it for that merge commit, the asset digest matches, and the APK's
+signer matches the installed app; Android's installer asks for a final confirm. Prometheus's own token has no Actions
+or Workflows permission, so it can't release or change workflows. That release workflow signs with the owner's key and
+lives only in the private repo; this repo's `release.yml` is the public, throwaway-key equivalent.
 
 ## Build
 

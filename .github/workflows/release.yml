@@ -1,62 +1,29 @@
-# Builds one merged commit of main, signs it with the debug key the installed app carries, and publishes a
-# GitHub Release with the APK, its SHA-256 and the commits since the last release (docs/PROMETHEUS.md).
-#
-# Started only by workflow_dispatch: the owner's phone sends it after his fingerprint, with the phone-only release
-# token (Prometheus's token has no Actions write, so it can't). There is deliberately no tag trigger: Prometheus
-# can push tags. The keystore is a secret of the "release" environment, which only main may use.
+# On a v* tag: build and test, then publish a DEMO APK as a GitHub Release with its SHA-256 and generated notes.
+# The APK is re-signed with a throwaway key generated inside this job and deleted at the end, so it is not tied to
+# any real install. Updates can't be installed over it; it's for trying the app, not for daily use.
 name: release
-run-name: release ${{ inputs.sha }}
 
 on:
-  workflow_dispatch:
-    inputs:
-      sha:
-        description: Merged commit on main to build
-        required: true
-        type: string
+  push:
+    tags: ["v*"]
 
-permissions:
-  contents: read
+permissions: {}
 
 concurrency:
-  group: release
+  group: release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
   release:
-    if: github.ref == 'refs/heads/main'
+    name: Demo release
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    environment: release
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.sha }}
-          fetch-depth: 0
-          fetch-tags: true
           persist-credentials: false
-
-      - name: The commit is on main
-        env:
-          SHA: ${{ inputs.sha }}
-        run: |
-          [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::sha must be a full 40-character commit id"; exit 1; }
-          git fetch --no-tags origin main
-          git merge-base --is-ancestor "$SHA" origin/main || { echo "::error::$SHA is not on main"; exit 1; }
-
-      - name: Version
-        id: v
-        run: |
-          name=$(sed -n 's/^ *versionName = "\(.*\)"$/\1/p' app/build.gradle.kts | head -1)
-          code=$(sed -n 's/^ *versionCode = \([0-9]*\)$/\1/p' app/build.gradle.kts | head -1)
-          [ -n "$name" ] && [ -n "$code" ] || { echo "::error::versionName or versionCode not found in app/build.gradle.kts"; exit 1; }
-          if git rev-parse -q --verify "refs/tags/v$name" >/dev/null; then
-            echo "::error::v$name is already released. Bump versionName and versionCode in app/build.gradle.kts."; exit 1
-          fi
-          echo "name=$name" >> "$GITHUB_OUTPUT"
-          echo "code=$code" >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
@@ -68,58 +35,60 @@ jobs:
       - name: local.properties
         run: echo "sdk.dir=$ANDROID_HOME" > local.properties
 
-      - name: Signing key
-        env:
-          DEBUG_KEYSTORE: ${{ secrets.DEBUG_KEYSTORE }}
-        run: |
-          [ -n "$DEBUG_KEYSTORE" ] || { echo "::error::DEBUG_KEYSTORE is not set on the release environment"; exit 1; }
-          dir="${ANDROID_USER_HOME:-$HOME/.android}"
-          mkdir -p "$dir" "$HOME/.android"
-          printf '%s' "$DEBUG_KEYSTORE" | base64 -d > "$dir/debug.keystore"
-          cp "$dir/debug.keystore" "$HOME/.android/debug.keystore"
-          want=$(keytool -list -v -keystore "$dir/debug.keystore" -storepass android -alias androiddebugkey | sed -n 's/^.*SHA256: //p' | tr -d ':' | tr 'A-F' 'a-f')
-          [ -n "$want" ] || { echo "::error::The keystore has no androiddebugkey entry"; exit 1; }
-          echo "SIGNER_SHA256=$want" >> "$GITHUB_ENV"
-
       - name: Build and test
-        run: ./gradlew --no-daemon :app:assembleDebug :app:testDebugUnitTest -Pkotlin.incremental=false
+        run: ./gradlew --no-daemon assembleDebug testDebugUnitTest -Pkotlin.incremental=false
 
-      - name: Check the signature and hash
+      - name: Sign with a throwaway demo key
         id: apk
         env:
-          NAME: ${{ steps.v.outputs.name }}
+          TAG: ${{ github.ref_name }}
         run: |
-          apk="zeus-$NAME.apk"
-          cp app/build/outputs/apk/debug/app-debug.apk "$apk"
+          KS_PASS=$(openssl rand -hex 24); export KS_PASS
+          ks="$RUNNER_TEMP/demo.p12"
+          keytool -genkeypair -noprompt -storetype PKCS12 -keystore "$ks" -storepass "$KS_PASS" -alias demo \
+            -keyalg EC -groupname secp256r1 -sigalg SHA256withECDSA -validity 3650 -dname "CN=Zeus demo build, O=Showcase"
           signer=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
-          got=$("$signer" verify --print-certs "$apk" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | tr 'A-F' 'a-f')
-          [ "$got" = "$SIGNER_SHA256" ] || { echo "::error::The APK is not signed with the release environment's key"; exit 1; }
+          apk="zeus-demo-$TAG.apk"
+          "$signer" sign --ks "$ks" --ks-pass env:KS_PASS --ks-key-alias demo --out "$apk" app/build/outputs/apk/debug/app-debug.apk
+          rm -f "$ks"
+          cert=$("$signer" verify --print-certs "$apk" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p')
+          [ -n "$cert" ] || { echo "::error::apksigner did not verify the demo APK"; exit 1; }
+          sha256sum "$apk" > "$apk.sha256"
           echo "file=$apk" >> "$GITHUB_OUTPUT"
-          echo "sha=$(sha256sum "$apk" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
-          echo "bytes=$(stat -c %s "$apk")" >> "$GITHUB_OUTPUT"
+          echo "sha=$(cut -d' ' -f1 "$apk.sha256")" >> "$GITHUB_OUTPUT"
+          echo "cert=$cert" >> "$GITHUB_OUTPUT"
 
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
-          SHA: ${{ inputs.sha }}
-          NAME: ${{ steps.v.outputs.name }}
-          CODE: ${{ steps.v.outputs.code }}
+          TAG: ${{ github.ref_name }}
+          APK: ${{ steps.apk.outputs.file }}
+          APK_SHA: ${{ steps.apk.outputs.sha }}
+          CERT: ${{ steps.apk.outputs.cert }}
+        run: |
+          version=$(sed -n 's/^ *versionName = "\(.*\)"$/\1/p' app/build.gradle.kts | head -1)
+          {
+            echo "Demo build of Zeus $version from \`$GITHUB_SHA\`."
+            echo
+            echo "- APK SHA-256: \`$APK_SHA\`"
+            echo "- Signed with a one-off key generated in this workflow (certificate SHA-256 \`$CERT\`). It is not the"
+            echo "  owner's key, so it can't update a real install. Placeholders (Firebase, gateway host) are not filled in."
+            echo
+          } > notes.md
+          gh release create "$TAG" "$APK" "$APK.sha256" --repo "$GITHUB_REPOSITORY" --verify-tag \
+            --title "Zeus $TAG (demo)" --notes-file notes.md --generate-notes
+
+      - name: Job summary
+        if: always()
+        env:
+          TAG: ${{ github.ref_name }}
           APK: ${{ steps.apk.outputs.file }}
           APK_SHA: ${{ steps.apk.outputs.sha }}
         run: |
-          prev=$(git tag --list 'v*' --merged "$SHA" --sort=-v:refname | head -1)
           {
-            echo "Zeus $NAME (versionCode $CODE), built from \`$SHA\`."
+            echo "### Demo release $TAG"
             echo
-            echo "SHA-256: \`$APK_SHA\`"
-            echo
-            echo "Signer certificate SHA-256: \`$SIGNER_SHA256\`"
-            echo
-            echo "Commits${prev:+ since $prev}:"
-            if [ -n "$prev" ]; then git log --no-merges --format='- %h %s' "$prev..$SHA"; else git log --no-merges --format='- %h %s' -20 "$SHA"; fi
-          } > notes.md
-          gh release create "v$NAME" "$APK" --repo "$GITHUB_REPOSITORY" --target "$SHA" --title "Zeus $NAME" --notes-file notes.md
-
-      - name: Remove the signing key
-        if: always()
-        run: rm -f "${ANDROID_USER_HOME:-$HOME/.android}/debug.keystore" "$HOME/.android/debug.keystore"
+            echo "- APK: \`$APK\`"
+            echo "- SHA-256: \`$APK_SHA\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+          python3 .github/scripts/junit_summary.py "Unit tests" app/build/test-results >> "$GITHUB_STEP_SUMMARY"

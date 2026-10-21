@@ -1,23 +1,26 @@
-# Builds Zeus and runs every unit test on each pull request and on main. Prometheus's PRs are tested here.
-# No secrets: the Firebase values are placeholders in app/src/main/res/values/firebase.xml (no google-services plugin).
+# Builds the debug APK and runs every unit test on each pull request and on main; Android lint runs alongside and
+# publishes its report. No secrets: Firebase values are placeholders and the Google Home backend is the stub.
 name: ci
 
 on:
   pull_request:
   push:
     branches: [main]
+  workflow_dispatch:
 
-permissions:
-  contents: read
+permissions: {}
 
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  ci:
+  build:
+    name: Build and unit tests
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -37,6 +40,10 @@ jobs:
       - name: Build and test
         run: ./gradlew --no-daemon assembleDebug testDebugUnitTest -Pkotlin.incremental=false
 
+      - name: Test summary
+        if: always()
+        run: python3 .github/scripts/junit_summary.py "Unit tests" app/build/test-results wear/build/test-results >> "$GITHUB_STEP_SUMMARY"
+
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -44,6 +51,74 @@ jobs:
           name: test-reports
           path: |
             app/build/reports/tests/
+            app/build/test-results/
             wear/build/reports/tests/
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: app-debug
+          path: app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 7
+
+  lint:
+    name: Android lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+
+      - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
+
+      - name: local.properties
+        run: echo "sdk.dir=$ANDROID_HOME" > local.properties
+
+      # Report-only for now: findings are published, not enforced, so the job stays green while they are worked down.
+      - name: Lint
+        id: lint
+        continue-on-error: true
+        run: ./gradlew --no-daemon :app:lintDebug -Pkotlin.incremental=false
+
+      - name: Lint summary
+        if: always()
+        env:
+          OUTCOME: ${{ steps.lint.outcome }}
+        run: |
+          python3 - <<'EOF' >> "$GITHUB_STEP_SUMMARY"
+          import collections, xml.etree.ElementTree as ET
+          from pathlib import Path
+          p = Path("app/build/reports/lint-results-debug.xml")
+          print("### Android lint\n")
+          if not p.is_file():
+              print("No lint report was produced.")
+          else:
+              issues = list(ET.parse(p).getroot().iter("issue"))
+              by = collections.Counter(i.get("severity") for i in issues)
+              print("| Severity | Count |\n|---|---:|")
+              for sev in ("Fatal", "Error", "Warning", "Information"):
+                  if by.get(sev):
+                      print(f"| {sev} | {by[sev]} |")
+              print(f"\n{len(issues)} issue(s). The full HTML report is in the `lint-report` artifact.")
+          EOF
+          echo "Lint step outcome: $OUTCOME" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload lint report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: lint-report
+          path: app/build/reports/lint-results-debug.*
           if-no-files-found: ignore
           retention-days: 14
