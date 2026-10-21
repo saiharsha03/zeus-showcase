@@ -31,8 +31,8 @@ kotlin {
 }
 
 dependencies {
-    implementation("androidx.wear.tiles:tiles:1.4.1")
-    implementation("androidx.wear.protolayout:protolayout:1.2.1")
+    implementation("androidx.wear.tiles:tiles:1.6.2")
+    implementation("androidx.wear.protolayout:protolayout:1.4.2")
     implementation("androidx.concurrent:concurrent-futures:1.2.0")
     implementation("com.google.android.gms:play-services-wearable:19.0.0")
 }

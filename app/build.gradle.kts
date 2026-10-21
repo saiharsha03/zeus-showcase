@@ -98,7 +98,7 @@ configurations.configureEach {
 }
 
 dependencies {
-    implementation(platform("androidx.compose:compose-bom:2025.04.01"))
+    implementation(platform("androidx.compose:compose-bom:2026.09.00"))
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.material3:material3")
@@ -107,11 +107,11 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-tooling")
     implementation("androidx.activity:activity-compose:1.10.1")
     // NotificationCompat for the Now Bar.
-    implementation("androidx.core:core-ktx:1.15.0")
+    implementation("androidx.core:core-ktx:1.19.1")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
     // Shapes for blocks and stat tiles (RoundedPolygon), pure geometry, no network.
-    implementation("androidx.graphics:graphics-shapes:1.0.1")
+    implementation("androidx.graphics:graphics-shapes:1.1.0")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.robolectric:robolectric:4.15.1")
     testImplementation("androidx.compose.ui:ui-test-junit4")
@@ -127,7 +127,7 @@ dependencies {
     // Nano is foreground-only: ProcessLifecycleOwner tells us when Zeus is on screen.
     implementation("androidx.lifecycle:lifecycle-process:2.8.7")
     // Batched triage and task hygiene in the background. No foreground service.
-    implementation("androidx.work:work-runtime-ktx:2.10.1")
+    implementation("androidx.work:work-runtime-ktx:2.12.0")
     // Phase 2c: store-arrival geofences. Fused location runs inside Google Play services; only "near store X" leaves the phone.
     implementation("com.google.android.gms:play-services-location:21.3.0")
     // Phase 2c: Alexandria's embeddings (EmbeddingGemma 2 through MediaPipe, as PhoneRecall). Used only when the model file is on the phone.
@@ -143,11 +143,11 @@ dependencies {
     implementation(files(spotifyAar))
     implementation("com.google.code.gson:gson:2.11.0")
     // Spotify's PKCE sign-in page in a Custom Tab (the browser's process).
-    implementation("androidx.browser:browser:1.8.0")
+    implementation("androidx.browser:browser:1.10.0")
     // Iaso: Health Connect (Samsung Health syncs the Galaxy Watch into it). 1.1.0-beta01 is the last release
     // that builds against compileSdk 35. Reads steps, sleep, heart rate, workouts, weight, active calories;
     // writes only the weights and meals Zeus logs.
-    implementation("androidx.health.connect:connect-client:1.1.0-beta01")
+    implementation("androidx.health.connect:connect-client:1.2.0-alpha06")
     // Iaso: the Wearable Data Layer to the :wear tile (Play services IPC, no host of ours).
     implementation("com.google.android.gms:play-services-wearable:19.0.0")
     // Hestia: Google Home APIs 1.11 (Device and Structure APIs; AiDot lights and plugs linked into Google Home).
